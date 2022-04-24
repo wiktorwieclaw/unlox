@@ -5,11 +5,6 @@ use std::{
     process,
 };
 
-// TODO: do not use global variables
-// make an ErrorReporter trait and pass its implementors
-// to other components
-static mut HAD_ERROR: bool = false;
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -26,7 +21,7 @@ fn main() {
 fn run_file(path: &str) -> io::Result<()> {
     let code = fs::read_to_string(path)?;
     run(&code);
-    if unsafe { HAD_ERROR } {
+    if unsafe { lox::error::HAD_ERROR } {
         process::exit(65);
     }
     Ok(())
@@ -41,7 +36,7 @@ fn run_prompt() -> io::Result<()> {
         match lines.next() {
             Some(line) => {
                 run(&line?);
-                unsafe { HAD_ERROR = false };
+                unsafe { lox::error::HAD_ERROR = false };
             }
             None => break,
         }
@@ -56,13 +51,4 @@ fn run(code: &str) {
     // for token in tokens {
     //     println!("{token}");
     // }
-}
-
-fn error(line: u32, message: &str) {
-    report(line, "", message);
-}
-
-fn report(line: u32, location: &str, message: &str) {
-    eprintln!("[line {line}] Error {location}: {message}");
-    unsafe { HAD_ERROR = true };
 }
