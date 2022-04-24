@@ -45,10 +45,9 @@ fn run_prompt() -> io::Result<()> {
 }
 
 fn run(code: &str) {
-    // TODO
-    // let tokens = scan_tokens();
+    let tokens = lox::scan::Scanner::new(code);
 
-    // for token in tokens {
-    //     println!("{token}");
-    // }
+    for token in tokens {
+        println!("{:?}", token);
+    }
 }

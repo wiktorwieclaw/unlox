@@ -1,2 +1,2 @@
-mod scan;
+pub mod scan;
 pub mod error;
