@@ -1,14 +1,15 @@
-use std::any::Any;
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+use crate::error;
 
 #[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,
-    pub literal: Option<Box<dyn Any>>,
     pub line: u32,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum TokenKind {
     // single character
     LeftParen,
@@ -35,8 +36,8 @@ pub enum TokenKind {
 
     // literals
     Identifier,
-    String,
-    Number,
+    String(String),
+    Number(f64),
 
     // keywords
     And,
@@ -69,8 +70,33 @@ pub struct Scanner<'a> {
     had_eof: bool,
 }
 
+pub fn tokens(source: &str) -> Scanner {
+    Scanner::new(source)
+}
+
+lazy_static! {
+    static ref KEYWORDS: HashMap<&'static str, TokenKind> = HashMap::from([
+        ("and", TokenKind::And),
+        ("class", TokenKind::Class),
+        ("else", TokenKind::Else),
+        ("false", TokenKind::False),
+        ("for", TokenKind::For),
+        ("fun", TokenKind::Fun),
+        ("if", TokenKind::If),
+        ("nil", TokenKind::Nil),
+        ("or", TokenKind::Or),
+        ("print", TokenKind::Print),
+        ("return", TokenKind::Return),
+        ("super", TokenKind::Super),
+        ("this", TokenKind::This),
+        ("true", TokenKind::True),
+        ("var", TokenKind::Var),
+        ("while", TokenKind::While)
+    ]);
+}
+
 impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+    fn new(source: &'a str) -> Self {
         Scanner {
             source,
             start: 0,
@@ -112,7 +138,8 @@ impl<'a> Scanner<'a> {
             '/' => self.make_token(TokenKind::Slash),
             '"' => self.make_string_token(),
             '0'..='9' => self.make_number_token(),
-            _ => crate::error::error(self.line, "Unexpected character."),
+            c if is_alphabetic(c) => self.make_identifier_token(),
+            _ => error::error(self.line, "Unexpected character."),
         }
     }
 
@@ -134,18 +161,13 @@ impl<'a> Scanner<'a> {
         self.char_at(self.current)
     }
 
-    fn make_token_with_value(&mut self, kind: TokenKind, value: Option<Box<dyn Any>>) {
+    fn make_token(&mut self, kind: TokenKind) {
         let lexeme = String::from(&self.source[self.start..self.current]);
         self.token = Some(Token {
             kind,
             lexeme,
-            literal: value,
             line: self.line,
         });
-    }
-
-    fn make_token(&mut self, kind: TokenKind) {
-        self.make_token_with_value(kind, None);
     }
 
     fn match_current(&mut self, expected: char) -> bool {
@@ -172,7 +194,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn make_string_token(&mut self) {
-        while self.peek() != '"' && self.is_at_end() {
+        while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
             }
@@ -186,7 +208,7 @@ impl<'a> Scanner<'a> {
 
         self.advance();
         let value = String::from(&self.source[(self.start + 1)..(self.current - 1)]);
-        self.make_token_with_value(TokenKind::String, Some(Box::new(value)));
+        self.make_token(TokenKind::String(value));
     }
 
     fn make_number_token(&mut self) {
@@ -204,7 +226,16 @@ impl<'a> Scanner<'a> {
         let value = self.source[self.start..self.current]
             .parse::<f64>()
             .unwrap();
-        self.make_token_with_value(TokenKind::Number, Some(Box::new(value)));
+        self.make_token(TokenKind::Number(value));
+    }
+
+    fn make_identifier_token(&mut self) {
+        while is_alphanumeric(self.peek()) {
+            self.advance();
+        }
+        let text = &self.source[self.start..self.current];
+        let kind = KEYWORDS.get(text).cloned().unwrap_or(TokenKind::Identifier);
+        self.make_token(kind);
     }
 }
 
@@ -223,10 +254,17 @@ impl<'a> Iterator for Scanner<'a> {
             return Some(Token {
                 kind: TokenKind::Eof,
                 lexeme: String::default(),
-                literal: None,
                 line: self.line,
             });
         }
         None
     }
+}
+
+fn is_alphabetic(c: char) -> bool {
+    matches!(c, 'A'..='Z' | 'a'..='z' | '_')
+}
+
+fn is_alphanumeric(c: char) -> bool {
+    is_alphabetic(c) || c.is_digit(10)
 }
