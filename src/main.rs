@@ -5,6 +5,8 @@ use std::{
     process,
 };
 
+use lox::{error, lex, parse};
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -45,7 +47,12 @@ fn run_prompt() -> io::Result<()> {
 }
 
 fn run(code: &str) {
-    for token in lox::scan::tokens(code) {
-        println!("{:?}", token);
+    let scanner = lex::Scanner::new(code);
+    let mut parser = parse::Parser::new(scanner);
+    let ast = parser.parse();
+    if unsafe { error::HAD_ERROR } {
+        return;
     }
+
+    println!("{:?}", ast.unwrap());
 }

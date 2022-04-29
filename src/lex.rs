@@ -1,15 +1,15 @@
+use crate::error;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
-use crate::error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,
     pub line: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     // single character
     LeftParen,
@@ -67,11 +67,6 @@ pub struct Scanner<'a> {
     current: usize,
     line: u32,
     token: Option<Token>,
-    had_eof: bool,
-}
-
-pub fn tokens(source: &str) -> Scanner {
-    Scanner::new(source)
 }
 
 lazy_static! {
@@ -96,14 +91,28 @@ lazy_static! {
 }
 
 impl<'a> Scanner<'a> {
-    fn new(source: &'a str) -> Self {
+    pub fn new(source: &'a str) -> Self {
         Scanner {
             source,
             start: 0,
             current: 0,
             line: 1,
             token: None,
-            had_eof: false,
+        }
+    }
+
+    pub fn next_token(&mut self) -> Token {
+        while !self.is_at_end() {
+            self.start = self.current;
+            self.scan_token();
+            if let Some(token) = self.token.take() {
+                return token;
+            }
+        }
+        Token {
+            kind: TokenKind::Eof,
+            lexeme: "".into(),
+            line: self.line,
         }
     }
 
@@ -130,11 +139,7 @@ impl<'a> Scanner<'a> {
             '<' => self.make_token(TokenKind::Less),
             '>' if self.match_current('=') => self.make_token(TokenKind::GreaterEqual),
             '>' => self.make_token(TokenKind::Greater),
-            '/' if self.match_current('/') => {
-                while self.peek() != '\n' && self.is_at_end() {
-                    self.advance();
-                }
-            }
+            '/' if self.match_current('/') => self.advance_until_newline(),
             '/' => self.make_token(TokenKind::Slash),
             '"' => self.make_string_token(),
             '0'..='9' => self.make_number_token(),
@@ -154,20 +159,19 @@ impl<'a> Scanner<'a> {
     }
 
     fn char_at(&self, idx: usize) -> char {
-        self.source.as_bytes()[idx] as char
+        self.source.as_bytes()[idx] as char // todo: handle utf8 properly
     }
 
     fn current_char(&self) -> char {
         self.char_at(self.current)
     }
 
-    fn make_token(&mut self, kind: TokenKind) {
-        let lexeme = String::from(&self.source[self.start..self.current]);
-        self.token = Some(Token {
-            kind,
-            lexeme,
-            line: self.line,
-        });
+    fn next_char(&self) -> char {
+        self.char_at(self.current + 1)
+    }
+
+    fn current_string(&self) -> &str {
+        &self.source[self.start..self.current]
     }
 
     fn match_current(&mut self, expected: char) -> bool {
@@ -190,75 +194,80 @@ impl<'a> Scanner<'a> {
         if self.current + 1 >= self.source.len() {
             return '\0';
         }
-        self.char_at(self.current + 1)
+        self.next_char()
+    }
+
+    fn make_token(&mut self, kind: TokenKind) {
+        self.token = Some(Token {
+            kind,
+            lexeme: self.current_string().into(),
+            line: self.line,
+        });
     }
 
     fn make_string_token(&mut self) {
+        self.advance_until_string_end();
+
+        if self.is_at_end() {
+            error::error(self.line, "Unterminated string");
+            return;
+        }
+
+        self.advance();
+        let trimmed = trim_bounds(self.current_string(), 1);
+        let value = String::from(trimmed);
+        self.make_token(TokenKind::String(value))
+    }
+
+    fn make_number_token(&mut self) {
+        self.advance_while_digit(10);
+
+        if self.peek() == '.' && self.peek_next().is_digit(10) {
+            self.advance();
+            self.advance_while_digit(10);
+        }
+
+        let value: f64 = self.current_string().parse().unwrap();
+        self.make_token(TokenKind::Number(value));
+    }
+
+    fn make_identifier_token(&mut self) {
+        self.advance_while_alphanumeric();
+        let text = self.current_string();
+        let kind = KEYWORDS.get(text).cloned().unwrap_or(TokenKind::Identifier);
+        self.make_token(kind);
+    }
+
+    fn advance_until_newline(&mut self) {
+        while self.peek() != '\n' && self.is_at_end() {
+            self.advance();
+        }
+    }
+
+    fn advance_until_string_end(&mut self) {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
             }
             self.advance();
         }
-
-        if self.is_at_end() {
-            crate::error::error(self.line, "Unterminated string");
-            return;
-        }
-
-        self.advance();
-        let value = String::from(&self.source[(self.start + 1)..(self.current - 1)]);
-        self.make_token(TokenKind::String(value));
     }
 
-    fn make_number_token(&mut self) {
-        while self.peek().is_digit(10) {
+    fn advance_while_digit(&mut self, radix: u32) {
+        while self.peek().is_digit(radix) {
             self.advance();
         }
-
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
-            self.advance();
-            while self.peek().is_digit(10) {
-                self.advance();
-            }
-        }
-
-        let value = self.source[self.start..self.current]
-            .parse::<f64>()
-            .unwrap();
-        self.make_token(TokenKind::Number(value));
     }
 
-    fn make_identifier_token(&mut self) {
+    fn advance_while_alphanumeric(&mut self) {
         while is_alphanumeric(self.peek()) {
             self.advance();
         }
-        let text = &self.source[self.start..self.current];
-        let kind = KEYWORDS.get(text).cloned().unwrap_or(TokenKind::Identifier);
-        self.make_token(kind);
     }
 }
 
-impl<'a> Iterator for Scanner<'a> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
-        while !self.is_at_end() {
-            self.start = self.current;
-            self.scan_token();
-            if self.token.is_some() {
-                return self.token.take();
-            }
-        }
-        if !self.had_eof {
-            self.had_eof = true;
-            return Some(Token {
-                kind: TokenKind::Eof,
-                lexeme: String::default(),
-                line: self.line,
-            });
-        }
-        None
-    }
+fn trim_bounds(s: &str, bounds_len: usize) -> &str {
+    &s[bounds_len..(s.len() - bounds_len)]
 }
 
 fn is_alphabetic(c: char) -> bool {
@@ -267,4 +276,57 @@ fn is_alphabetic(c: char) -> bool {
 
 fn is_alphanumeric(c: char) -> bool {
     is_alphabetic(c) || c.is_digit(10)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn expect_tokens(code: &str, expected_tokens: &[Token]) {
+        let mut expected_tokens = expected_tokens.iter();
+        let mut scanner = Scanner::new(code);
+        let mut token = scanner.next_token();
+        while token.kind != TokenKind::Eof {
+            assert_eq!(&token, expected_tokens.next().unwrap());
+            token = scanner.next_token();
+        }
+    }
+
+    #[test]
+    fn string_variable() {
+        let code = r#"var text = "hello";"#;
+        let expected_tokens = [
+            Token {
+                kind: TokenKind::Var,
+                lexeme: "var".into(),
+                line: 1,
+            },
+            Token {
+                kind: TokenKind::Identifier,
+                lexeme: "text".into(),
+                line: 1,
+            },
+            Token {
+                kind: TokenKind::Equal,
+                lexeme: "=".into(),
+                line: 1,
+            },
+            Token {
+                kind: TokenKind::String("hello".into()),
+                lexeme: r#""hello""#.into(),
+                line: 1,
+            },
+            Token {
+                kind: TokenKind::Semicolon,
+                lexeme: ";".into(),
+                line: 1,
+            },
+            Token {
+                kind: TokenKind::Eof,
+                lexeme: "".into(),
+                line: 1
+            }
+        ];
+        expect_tokens(code, &expected_tokens);
+    }
 }
