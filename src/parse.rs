@@ -8,7 +8,7 @@
 //! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
 use crate::{
-    ast::{Expr, Literal},
+    ast::{Expr, Lit},
     error,
     lex::{Scanner, Token, TokenKind},
 };
@@ -189,15 +189,15 @@ impl<'a> Parser<'a> {
 
     fn primary(&mut self) -> Result<Box<Expr>, Error> {
         let expr = if match_token!(self, TokenKind::False) {
-            Expr::Literal(Literal::Bool(false))
+            Expr::Literal(Lit::Bool(false))
         } else if match_token!(self, TokenKind::True) {
-            Expr::Literal(Literal::Bool(true))
+            Expr::Literal(Lit::Bool(true))
         } else if match_token!(self, TokenKind::Nil) {
-            Expr::Literal(Literal::Nil)
+            Expr::Literal(Lit::Nil)
         } else if match_token!(self, TokenKind::Number(..) | TokenKind::String(..)) {
             match self.previous().kind {
-                TokenKind::Number(value) => Expr::Literal(Literal::Number(value)),
-                TokenKind::String(value) => Expr::Literal(Literal::String(value)),
+                TokenKind::Number(value) => Expr::Literal(Lit::Number(value)),
+                TokenKind::String(value) => Expr::Literal(Lit::String(value)),
                 _ => unreachable!(),
             }
         } else if match_token!(self, TokenKind::LeftParen) {

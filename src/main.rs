@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-use lox::{error, lex, parse};
+use lox::{error, lex, parse, interpret};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -53,6 +53,5 @@ fn run(code: &str) {
     if unsafe { error::HAD_ERROR } {
         return;
     }
-
-    println!("{:?}", ast.unwrap());
+    println!("{:?}", interpret::interpret(ast.unwrap()));
 }

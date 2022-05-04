@@ -1,14 +1,14 @@
 use crate::lex;
 
-#[derive(Debug)]
-pub enum Literal {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Lit {
     String(String),
     Number(f64),
     Bool(bool),
     Nil,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
         operator: lex::Token,
@@ -16,7 +16,7 @@ pub enum Expr {
         right: Box<Expr>,
     },
     Grouping(Box<Expr>),
-    Literal(Literal),
+    Literal(Lit),
     Unary {
         operator: lex::Token,
         right: Box<Expr>,
