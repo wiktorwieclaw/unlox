@@ -10,15 +10,8 @@ pub enum Lit {
 
 #[derive(Debug, Clone)]
 pub enum Expr {
-    Binary {
-        operator: lex::Token,
-        left: Box<Expr>,
-        right: Box<Expr>,
-    },
+    Binary(lex::Token, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Lit),
-    Unary {
-        operator: lex::Token,
-        right: Box<Expr>,
-    },
+    Unary(lex::Token, Box<Expr>),
 }

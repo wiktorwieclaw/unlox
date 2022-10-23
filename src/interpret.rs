@@ -8,7 +8,7 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
     match *expr {
         Expr::Literal(value) => value,
         Expr::Grouping(expr) => interpret(expr),
-        Expr::Unary { operator, right } => {
+        Expr::Unary(operator, right) => {
             let right = interpret(right);
 
             match (operator.kind, right) {
@@ -18,11 +18,7 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
                 _ => unreachable!(),
             }
         }
-        Expr::Binary {
-            operator,
-            left,
-            right,
-        } => {
+        Expr::Binary(operator, left, right) => {
             let left = interpret(left);
             let right = interpret(right);
 
