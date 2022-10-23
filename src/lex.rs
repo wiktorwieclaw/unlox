@@ -89,6 +89,56 @@ static KEYWORDS: Lazy<HashMap<&'static str, TokenKind>> = Lazy::new(|| {
     ])
 });
 
+impl Iterator for Scanner<'_> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            self.start = self.current;
+            match self.advance() {
+                Some(' ' | '\r' | '\t') => {}
+                Some('\n') => self.line += 1,
+                Some('(') => return Some(self.token(TokenKind::LeftParen)),
+                Some(')') => return Some(self.token(TokenKind::RightParen)),
+                Some('{') => return Some(self.token(TokenKind::LeftBrace)),
+                Some('}') => return Some(self.token(TokenKind::RightBrace)),
+                Some(',') => return Some(self.token(TokenKind::Comma)),
+                Some('.') => return Some(self.token(TokenKind::Dot)),
+                Some('-') => return Some(self.token(TokenKind::Minus)),
+                Some('+') => return Some(self.token(TokenKind::Plus)),
+                Some(';') => return Some(self.token(TokenKind::Semicolon)),
+                Some('*') => return Some(self.token(TokenKind::Star)),
+                Some('!') if self.match_current('=') => {
+                    return Some(self.token(TokenKind::BangEqual))
+                }
+                Some('!') => return Some(self.token(TokenKind::Bang)),
+                Some('=') if self.match_current('=') => {
+                    return Some(self.token(TokenKind::EqualEqual))
+                }
+                Some('=') => return Some(self.token(TokenKind::Equal)),
+                Some('<') if self.match_current('=') => {
+                    return Some(self.token(TokenKind::LessEqual))
+                }
+                Some('<') => return Some(self.token(TokenKind::Less)),
+                Some('>') if self.match_current('=') => {
+                    return Some(self.token(TokenKind::GreaterEqual))
+                }
+                Some('>') => return Some(self.token(TokenKind::Greater)),
+                Some('/') if self.match_current('/') => self.advance_until_newline(),
+                Some('/') => return Some(self.token(TokenKind::Slash)),
+                Some('"') => match self.string_token() {
+                    Some(t) => return Some(t),
+                    None => error::error(self.line, "Unterminated string"),
+                },
+                Some('0'..='9') => return Some(self.number_token()),
+                Some('A'..='Z' | 'a'..='z' | '_') => return Some(self.ident_token()),
+                Some(_) => error::error(self.line, "Unexpected character."),
+                None => return None,
+            }
+        }
+    }
+}
+
 impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Scanner {
@@ -99,50 +149,8 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn next_token(&mut self) -> Token {
-        loop {
-            self.start = self.current;
-            match self.advance() {
-                Some(' ' | '\r' | '\t') => {}
-                Some('\n') => self.line += 1,
-                Some('(') => return self.token(TokenKind::LeftParen),
-                Some(')') => return self.token(TokenKind::RightParen),
-                Some('{') => return self.token(TokenKind::LeftBrace),
-                Some('}') => return self.token(TokenKind::RightBrace),
-                Some(',') => return self.token(TokenKind::Comma),
-                Some('.') => return self.token(TokenKind::Dot),
-                Some('-') => return self.token(TokenKind::Minus),
-                Some('+') => return self.token(TokenKind::Plus),
-                Some(';') => return self.token(TokenKind::Semicolon),
-                Some('*') => return self.token(TokenKind::Star),
-                Some('!') if self.match_current('=') => return self.token(TokenKind::BangEqual),
-                Some('!') => return self.token(TokenKind::Bang),
-                Some('=') if self.match_current('=') => return self.token(TokenKind::EqualEqual),
-                Some('=') => return self.token(TokenKind::Equal),
-                Some('<') if self.match_current('=') => return self.token(TokenKind::LessEqual),
-                Some('<') => return self.token(TokenKind::Less),
-                Some('>') if self.match_current('=') => return self.token(TokenKind::GreaterEqual),
-                Some('>') => return self.token(TokenKind::Greater),
-                Some('/') if self.match_current('/') => self.advance_until_newline(),
-                Some('/') => return self.token(TokenKind::Slash),
-                Some('"') => match self.string_token() {
-                    Some(t) => return t,
-                    None => error::error(self.line, "Unterminated string"),
-                },
-                Some('0'..='9') => return self.number_token(),
-                Some('A'..='Z' | 'a'..='z' | '_') => return self.ident_token(),
-                Some(_) => error::error(self.line, "Unexpected character."),
-                None => return self.eof(),
-            }
-        }
-    }
-
-    fn eof(&self) -> Token {
-        Token {
-            kind: TokenKind::Eof,
-            lexeme: "".into(),
-            line: self.line,
-        }
+    pub fn line(&self) -> u32 {
+        self.line
     }
 
     fn is_at_end(&self) -> bool {
@@ -279,20 +287,20 @@ mod test {
     fn scans_parens() {
         let mut scanner = Scanner::new("()");
         assert_eq!(
-            scanner.next_token(),
-            Token {
+            scanner.next(),
+            Some(Token {
                 kind: TokenKind::LeftParen,
                 lexeme: "(".into(),
                 line: 1
-            }
+            })
         );
         assert_eq!(
-            scanner.next_token(),
-            Token {
+            scanner.next(),
+            Some(Token {
                 kind: TokenKind::RightParen,
                 lexeme: ")".into(),
                 line: 1
-            }
+            })
         )
     }
 
@@ -300,12 +308,12 @@ mod test {
     fn scans_float() {
         let mut scanner = Scanner::new("12.345");
         assert_eq!(
-            scanner.next_token(),
-            Token {
+            scanner.next(),
+            Some(Token {
                 kind: TokenKind::Number(12.345),
                 lexeme: "12.345".into(),
                 line: 1
-            }
+            })
         )
     }
 
@@ -313,12 +321,12 @@ mod test {
     fn scans_string() {
         let mut scanner = Scanner::new(r#""string""#);
         assert_eq!(
-            scanner.next_token(),
-            Token {
+            scanner.next(),
+            Some(Token {
                 kind: TokenKind::String("string".into()),
                 lexeme: r#""string""#.into(),
                 line: 1
-            }
+            })
         )
     }
 }

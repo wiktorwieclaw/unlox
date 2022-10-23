@@ -30,33 +30,6 @@ pub struct Parser<'a> {
     previous: Option<Token>,
 }
 
-macro_rules! check_token {
-    ($self:expr, $( $pattern:pat_param )|+) => {
-        !$self.is_at_end() && matches!($self.peek().kind, $( $pattern )|+)
-    }
-}
-
-macro_rules! match_token {
-    ($self:expr, $( $pattern:pat_param )|+) => {
-        if check_token!($self, $( $pattern )|+) {
-            $self.advance();
-            true
-        } else {
-            false
-        }
-    }
-}
-
-macro_rules! consume_token {
-    ($self:expr, $( $pattern:pat_param )|+, $message:expr) => {
-        if check_token!($self, $( $pattern )|+) {
-            Ok($self.advance())
-        } else {
-            Err(Error::new($self.peek().clone(), $message))
-        }
-    }
-}
-
 impl<'a> Parser<'a> {
     pub fn new(scanner: Scanner<'a>) -> Self {
         let mut parser = Self {
@@ -80,43 +53,46 @@ impl<'a> Parser<'a> {
 
     fn advance(&mut self) {
         self.previous = self.current.take();
-        self.current = Some(self.scanner.next_token());
+        self.current = self.scanner.next();
     }
 
-    fn is_at_end(&self) -> bool {
-        self.peek().kind == TokenKind::Eof
-    }
-
-    fn peek(&self) -> &Token {
-        self.current.as_ref().unwrap()
+    fn peek(&self) -> Option<&Token> {
+        self.current.as_ref()
     }
 
     fn previous(&mut self) -> Token {
         self.previous.take().unwrap()
     }
 
+    #[allow(dead_code)]
+    #[allow(clippy::while_let_loop)]
     fn synchronize(&mut self) {
         self.advance();
-        while !self.is_at_end() {
-            if self.previous().kind == TokenKind::Semicolon {
-                return;
-            }
+        loop {
+            match self.peek().cloned() {
+                Some(token) => {
+                    if self.previous().kind == TokenKind::Semicolon {
+                        break;
+                    }
 
-            if matches!(
-                self.peek().kind,
-                TokenKind::Class
-                    | TokenKind::Fun
-                    | TokenKind::Var
-                    | TokenKind::For
-                    | TokenKind::If
-                    | TokenKind::While
-                    | TokenKind::Print
-                    | TokenKind::Return
-            ) {
-                return;
-            }
+                    if matches!(
+                        token.kind,
+                        TokenKind::Class
+                            | TokenKind::Fun
+                            | TokenKind::Var
+                            | TokenKind::For
+                            | TokenKind::If
+                            | TokenKind::While
+                            | TokenKind::Print
+                            | TokenKind::Return
+                    ) {
+                        break;
+                    }
 
-            self.advance()
+                    self.advance()
+                }
+                None => break,
+            }
         }
     }
 
@@ -126,7 +102,9 @@ impl<'a> Parser<'a> {
 
     fn equality(&mut self) -> Result<Box<Expr>, Error> {
         let mut expr = self.comparison()?;
-        while match_token!(self, TokenKind::BangEqual | TokenKind::EqualEqual) {
+        while let Some(TokenKind::BangEqual | TokenKind::EqualEqual) = self.peek().map(|t| &t.kind)
+        {
+            self.advance();
             expr = Box::new(Expr::Binary {
                 operator: self.previous(),
                 left: expr,
@@ -138,10 +116,11 @@ impl<'a> Parser<'a> {
 
     fn comparison(&mut self) -> Result<Box<Expr>, Error> {
         let mut expr = self.term()?;
-        while match_token!(
-            self,
-            TokenKind::Less | TokenKind::LessEqual | TokenKind::Greater | TokenKind::GreaterEqual
-        ) {
+        while let Some(
+            TokenKind::Less | TokenKind::LessEqual | TokenKind::Greater | TokenKind::GreaterEqual,
+        ) = self.peek().map(|t| &t.kind)
+        {
+            self.advance();
             expr = Box::new(Expr::Binary {
                 operator: self.previous(),
                 left: expr,
@@ -153,7 +132,8 @@ impl<'a> Parser<'a> {
 
     fn term(&mut self) -> Result<Box<Expr>, Error> {
         let mut expr = self.factor()?;
-        while match_token!(self, TokenKind::Minus | TokenKind::Plus) {
+        while let Some(TokenKind::Minus | TokenKind::Plus) = self.peek().map(|t| &t.kind) {
+            self.advance();
             expr = Box::new(Expr::Binary {
                 operator: self.previous(),
                 left: expr,
@@ -165,7 +145,8 @@ impl<'a> Parser<'a> {
 
     fn factor(&mut self) -> Result<Box<Expr>, Error> {
         let mut expr = self.unary()?;
-        while match_token!(self, TokenKind::Slash | TokenKind::Star) {
+        while let Some(TokenKind::Slash | TokenKind::Star) = self.peek().map(|t| &t.kind) {
+            self.advance();
             expr = Box::new(Expr::Binary {
                 operator: self.previous(),
                 left: expr,
@@ -176,39 +157,67 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> Result<Box<Expr>, Error> {
-        if match_token!(self, TokenKind::Bang | TokenKind::Minus) {
-            let expr = Expr::Unary {
-                operator: self.previous(),
-                right: self.unary()?,
-            };
-            Ok(Box::new(expr))
-        } else {
-            self.primary()
+        match self.peek().map(|t| &t.kind) {
+            Some(TokenKind::Bang | TokenKind::Minus) => {
+                self.advance();
+                let expr = Expr::Unary {
+                    operator: self.previous(),
+                    right: self.unary()?,
+                };
+                Ok(Box::new(expr))
+            }
+            _ => self.primary()
         }
     }
 
     fn primary(&mut self) -> Result<Box<Expr>, Error> {
-        let expr = if match_token!(self, TokenKind::False) {
-            Expr::Literal(Lit::Bool(false))
-        } else if match_token!(self, TokenKind::True) {
-            Expr::Literal(Lit::Bool(true))
-        } else if match_token!(self, TokenKind::Nil) {
-            Expr::Literal(Lit::Nil)
-        } else if match_token!(self, TokenKind::Number(..) | TokenKind::String(..)) {
-            match self.previous().kind {
-                TokenKind::Number(value) => Expr::Literal(Lit::Number(value)),
-                TokenKind::String(value) => Expr::Literal(Lit::String(value)),
-                _ => unreachable!(),
+        let expr = match self.peek().map(|t| &t.kind) {
+            Some(TokenKind::False) => {
+                self.advance();
+                Expr::Literal(Lit::Bool(false))
             }
-        } else if match_token!(self, TokenKind::LeftParen) {
-            let expr = self.expression()?;
-            consume_token!(self, TokenKind::RightParen, "Expected expression.".into())?;
-            Expr::Grouping(expr)
-        } else {
-            return Err(Error::new(
-                self.peek().clone(),
-                "Expected expression".into(),
-            ));
+            Some(TokenKind::True) => {
+                self.advance();
+                Expr::Literal(Lit::Bool(true))
+            }
+            Some(TokenKind::Nil) => {
+                self.advance();
+                Expr::Literal(Lit::Nil)
+            }
+            Some(TokenKind::Number(..) | TokenKind::String(..)) => {
+                self.advance();
+                match self.previous().kind {
+                    TokenKind::Number(value) => Expr::Literal(Lit::Number(value)),
+                    TokenKind::String(value) => Expr::Literal(Lit::String(value)),
+                    _ => unreachable!(),
+                }    
+            }
+            Some(TokenKind::LeftParen) => {
+                self.advance();
+                let expr = self.expression()?;
+                match self.peek().map(|t| &t.kind) {
+                    Some(TokenKind::RightParen) => self.advance(),
+                    _ => return Err(Error::new(
+                        Token {
+                            kind: TokenKind::Eof,
+                            lexeme: "".into(),
+                            line: self.scanner.line()
+                        },
+                        "Expected expression.".into()
+                    ))
+                }
+                Expr::Grouping(expr)
+            }
+            _ => {
+                return Err(Error::new(
+                    Token {
+                        kind: TokenKind::Eof,
+                        lexeme: "".into(),
+                        line: self.scanner.line(),
+                    },
+                    "Expected expression".into(),
+                ));
+            }
         };
         Ok(Box::new(expr))
     }
