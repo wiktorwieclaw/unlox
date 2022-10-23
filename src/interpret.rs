@@ -17,7 +17,11 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
                 _ => unreachable!(),
             }
         }
-        Expr::Binary { operator, left, right } => {
+        Expr::Binary {
+            operator,
+            left,
+            right,
+        } => {
             let left = interpret(left);
             let right = interpret(right);
 
@@ -33,15 +37,15 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
                 (TokenKind::LessEqual, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l <= r),
                 (TokenKind::BangEqual, l, r) => Lit::Bool(l == r),
                 (TokenKind::EqualEqual, l, r) => Lit::Bool(l == r),
-                _ => unimplemented!()
+                _ => unimplemented!(),
             }
-        },
+        }
     }
 }
 
 fn is_truthy(lit: Lit) -> bool {
     match lit {
         Lit::Nil | Lit::Bool(false) => false,
-        _ => true
+        _ => true,
     }
 }

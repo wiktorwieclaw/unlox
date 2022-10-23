@@ -1,4 +1,3 @@
-
 // TODO: do not use global variables
 // make an ErrorReporter trait and pass its implementors
 // to other components

@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-use lox::{error, lex, parse, interpret};
+use lox::{error, interpret, lex, parse};
 
 fn main() {
     let args: Vec<String> = env::args().collect();

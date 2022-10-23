@@ -324,8 +324,8 @@ mod test {
             Token {
                 kind: TokenKind::Eof,
                 lexeme: "".into(),
-                line: 1
-            }
+                line: 1,
+            },
         ];
         expect_tokens(code, &expected_tokens);
     }
