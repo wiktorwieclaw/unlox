@@ -3,6 +3,7 @@ use crate::{
     lex::TokenKind,
 };
 
+#[allow(clippy::boxed_local)]
 pub fn interpret(expr: Box<Expr>) -> Lit {
     match *expr {
         Expr::Literal(value) => value,
@@ -44,8 +45,5 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
 }
 
 fn is_truthy(lit: Lit) -> bool {
-    match lit {
-        Lit::Nil | Lit::Bool(false) => false,
-        _ => true,
-    }
+    !matches!(lit, Lit::Nil | Lit::Bool(false))
 }
