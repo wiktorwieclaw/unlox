@@ -24,12 +24,12 @@ impl Error {
     }
 }
 
-pub struct Parser<'source> {
-    scanner: Scanner<'source>,
+pub struct Parser<'src> {
+    scanner: Scanner<'src>,
 }
 
-impl<'source> Parser<'source> {
-    pub fn new(scanner: Scanner<'source>) -> Self {
+impl<'src> Parser<'src> {
+    pub fn new(scanner: Scanner<'src>) -> Self {
         Self { scanner }
     }
 
@@ -141,11 +141,16 @@ impl<'source> Parser<'source> {
                 self.scanner.advance();
                 Expr::Literal(Lit::Nil)
             }
-            TokenKind::Number(..) | TokenKind::String(..) => {
+            TokenKind::Number(..) | TokenKind::String { .. } => {
                 let previous = self.scanner.advance();
-                match previous.kind {
-                    TokenKind::Number(value) => Expr::Literal(Lit::Number(value)),
-                    TokenKind::String(value) => Expr::Literal(Lit::String(value)),
+                match &previous.kind {
+                    TokenKind::Number(value) => Expr::Literal(Lit::Number(*value)),
+                    TokenKind::String { value, is_terminated } => {
+                        if !is_terminated {
+                            return Err(Error::new(previous, "Unterminated string.".into()));
+                        }
+                        Expr::Literal(Lit::String(value.clone()))
+                    }
                     _ => unreachable!(),
                 }
             }

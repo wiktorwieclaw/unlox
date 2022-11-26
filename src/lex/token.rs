@@ -32,7 +32,7 @@ pub enum TokenKind {
 
     // literals
     Identifier,
-    String(String),
+    String { value: String, is_terminated: bool },
     Number(f64),
 
     // keywords
@@ -53,6 +53,9 @@ pub enum TokenKind {
     Var,
     While,
 
-    // eof
+    // Unexpected character
+    Unknown,
+
+    // end of input
     Eof,
 }

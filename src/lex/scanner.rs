@@ -1,19 +1,17 @@
-use crate::error;
-
 use super::{
     cursor::Cursor,
     token::{Token, TokenKind},
 };
 
-pub struct Scanner<'a> {
-    inner: Inner<'a>,
+pub struct Scanner<'src> {
+    inner: InnerScanner<'src>,
     peeked: Option<Token>,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl<'src> Scanner<'src> {
+    pub fn new(source: &'src str) -> Self {
         Scanner {
-            inner: Inner {
+            inner: InnerScanner {
                 cursor: Cursor::new(source),
             },
             peeked: None,
@@ -32,11 +30,11 @@ impl<'a> Scanner<'a> {
     }
 }
 
-struct Inner<'a> {
-    cursor: Cursor<'a>,
+struct InnerScanner<'src> {
+    cursor: Cursor<'src>,
 }
 
-impl<'a> Inner<'a> {
+impl InnerScanner<'_> {
     fn advance(&mut self) -> Token {
         loop {
             self.cursor.reset_position();
@@ -72,14 +70,11 @@ impl<'a> Inner<'a> {
                     self.cursor.advance_while(|c| c != '\n')
                 }
                 Some('/') => break self.token(TokenKind::Slash),
-                Some('"') => match self.string_token() {
-                    Some(token) => break token,
-                    None => error::error(self.cursor.line(), "Unterminated string."),
-                },
+                Some('"') => break self.string_token(),
                 Some('0'..='9') => break self.number_token(),
                 Some('A'..='Z' | 'a'..='z' | '_') => break self.ident_token(),
                 None => break self.token(TokenKind::Eof),
-                _ => error::error(self.cursor.line(), "Unexpected character."),
+                _ => break self.token(TokenKind::Unknown),
             }
         }
     }
@@ -92,17 +87,17 @@ impl<'a> Inner<'a> {
         }
     }
 
-    fn string_token(&mut self) -> Option<Token> {
+    fn string_token(&mut self) -> Token {
         self.cursor.advance_while(|c| c != '"');
-
-        if self.cursor.is_at_end() {
-            return None;
-        }
-
-        self.cursor.advance();
-        let trimmed = trim_bounds(self.cursor.current_str(), 1);
-        let value = String::from(trimmed);
-        Some(self.token(TokenKind::String(value)))
+        let is_terminated = !self.cursor.is_at_end();
+        let value = if is_terminated {
+            self.cursor.advance();
+            trim_bounds(self.cursor.current_str(), 1).to_string()
+        } else {
+            let s = self.cursor.current_str();
+            s[1..].to_string()
+        };
+        self.token(TokenKind::String { value, is_terminated })
     }
 
     fn number_token(&mut self) -> Token {
@@ -192,7 +187,7 @@ mod test {
         assert_eq!(
             scanner.advance(),
             Token {
-                kind: TokenKind::String("string".into()),
+                kind: TokenKind::String { value: "string".into(), is_terminated: true },
                 lexeme: r#""string""#.into(),
                 line: 1
             }

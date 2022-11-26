@@ -67,8 +67,6 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn current_str(&mut self) -> &str {
-        let str = &self.source[self.start..self.current];
-        self.start = self.current;
-        str
+        &self.source[self.start..self.current]
     }
 }
