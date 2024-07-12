@@ -32,7 +32,7 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
                 (TokenKind::GreaterEqual, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l >= r),
                 (TokenKind::Less, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l < r),
                 (TokenKind::LessEqual, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l <= r),
-                (TokenKind::BangEqual, l, r) => Lit::Bool(l == r),
+                (TokenKind::BangEqual, l, r) => Lit::Bool(l != r),
                 (TokenKind::EqualEqual, l, r) => Lit::Bool(l == r),
                 _ => unimplemented!(),
             }
