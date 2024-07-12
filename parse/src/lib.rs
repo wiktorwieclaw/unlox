@@ -21,7 +21,7 @@ use ast::{Expr, Lit, Stmt, Token, TokenKind};
 use lexer::Scanner;
 
 #[derive(Debug, thiserror::Error)]
-#[error("[line {}]: {}", token.line, message)]
+#[error("{message}")]
 pub struct Error {
     pub token: Token,
     pub message: String,
@@ -108,7 +108,7 @@ fn var_declaration(scanner: &mut Scanner) -> Result<Stmt> {
         TokenKind::Semicolon,
         "Expected ';' after variable declaration.",
     )?;
-    Ok(Stmt::Var { name, init })
+    Ok(Stmt::VarDecl { name, init })
 }
 
 fn expression(scanner: &mut Scanner) -> Result<Expr> {
@@ -195,6 +195,7 @@ fn primary(scanner: &mut Scanner) -> Result<Expr> {
             }
             Expr::Grouping(Box::new(expr))
         }
+        TokenKind::Identifier => Expr::Variable(token.clone()),
         TokenKind::Eof => {
             return Err(Error::new(
                 token.clone(),

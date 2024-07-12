@@ -6,7 +6,7 @@ use std::fmt::{self, Display};
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Print(Expr),
-    Var { name: Token, init: Option<Expr> },
+    VarDecl { name: Token, init: Option<Expr> },
     Expression(Expr),
 }
 
@@ -16,6 +16,7 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Literal(Lit),
     Unary(Token, Box<Expr>),
+    Variable(Token),
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -7,6 +7,8 @@ use std::{
 
 use std::cell::Cell;
 
+use interpret::Interpreter;
+
 thread_local! {
     pub static HAD_ERROR: Cell<bool>  = const { Cell::new(false) };
     pub static HAD_RUNTIME_ERROR: Cell<bool>  = const { Cell::new(false) };
@@ -27,7 +29,8 @@ fn main() {
 
 fn run_file(path: &str) -> io::Result<()> {
     let code = fs::read_to_string(path)?;
-    run(&code);
+    let mut interpreter = Interpreter::new();
+    run(&code, &mut interpreter);
     if HAD_ERROR.with(|e| e.get()) {
         process::exit(65);
     }
@@ -40,12 +43,13 @@ fn run_file(path: &str) -> io::Result<()> {
 fn run_prompt() -> io::Result<()> {
     let stdout = io::stdin();
     let mut lines = stdout.lock().lines();
+    let mut interpreter = Interpreter::new();
     loop {
         print!("> ");
         io::stdout().flush()?;
         match lines.next() {
             Some(line) => {
-                run(&line?);
+                run(&line?, &mut interpreter);
                 HAD_ERROR.with(|e| e.set(false))
             }
             None => break,
@@ -54,17 +58,17 @@ fn run_prompt() -> io::Result<()> {
     Ok(())
 }
 
-fn run(code: &str) {
+fn run(code: &str, interpreter: &mut Interpreter) {
     let scanner = lexer::Scanner::new(code);
     let ast = match parse::parse(scanner) {
         Ok(ast) => ast,
         Err(e) => {
-            eprintln!("{e}");
+            eprintln!("[Line {}]: {e}", e.token.line);
             return;
         }
     };
 
-    if let Err(e) = interpret::interpret(ast) {
-        eprintln!("{e}");
+    if let Err(e) = interpreter.interpret(ast) {
+        eprintln!("[Line {}]: {e}", e.line());
     }
 }
