@@ -57,7 +57,6 @@ fn declaration(scanner: &mut Scanner) -> Option<Stmt> {
             statement(scanner)
         }
     };
-    println!("{result:?}");
     result.ok().or_else(|| {
         synchronize(scanner);
         None
