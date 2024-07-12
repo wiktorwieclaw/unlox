@@ -1,26 +1,21 @@
-use crate::{
-    ast::{Expr, Lit},
-    lex::TokenKind,
-};
+use ast::{Expr, Lit, TokenKind};
 
-#[allow(clippy::boxed_local)]
-pub fn interpret(expr: Box<Expr>) -> Lit {
-    match *expr {
+pub fn interpret(expr: Expr) -> Lit {
+    match expr {
         Expr::Literal(value) => value,
-        Expr::Grouping(expr) => interpret(expr),
+        Expr::Grouping(expr) => interpret(*expr),
         Expr::Unary(operator, right) => {
-            let right = interpret(right);
-
+            let right = interpret(*right);
             match (operator.kind, right) {
-                (TokenKind::Bang, right) => Lit::Bool(!is_truthy(right)),
+                (TokenKind::Bang, right) => Lit::Bool(!right.is_truthy()),
                 (TokenKind::Minus, Lit::Number(r)) => Lit::Number(-r),
                 (TokenKind::Minus, _) => unimplemented!("Err"),
                 _ => unreachable!(),
             }
         }
         Expr::Binary(operator, left, right) => {
-            let left = interpret(left);
-            let right = interpret(right);
+            let left = interpret(*left);
+            let right = interpret(*right);
 
             match (operator.kind, left, right) {
                 (TokenKind::Minus, Lit::Number(l), Lit::Number(r)) => Lit::Number(l - r),
@@ -38,8 +33,4 @@ pub fn interpret(expr: Box<Expr>) -> Lit {
             }
         }
     }
-}
-
-fn is_truthy(lit: Lit) -> bool {
-    !matches!(lit, Lit::Nil | Lit::Bool(false))
 }

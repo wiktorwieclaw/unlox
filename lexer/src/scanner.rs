@@ -1,5 +1,5 @@
-use super::{
-    cursor::Cursor,
+use crate::{
+    selection::Selection,
     token::{Token, TokenKind},
 };
 
@@ -12,7 +12,7 @@ impl<'src> Scanner<'src> {
     pub fn new(source: &'src str) -> Self {
         Scanner {
             inner: InnerScanner {
-                cursor: Cursor::new(source),
+                cursor: Selection::new(source),
             },
             peeked: None,
         }
@@ -31,13 +31,13 @@ impl<'src> Scanner<'src> {
 }
 
 struct InnerScanner<'src> {
-    cursor: Cursor<'src>,
+    cursor: Selection<'src>,
 }
 
 impl InnerScanner<'_> {
     fn advance(&mut self) -> Token {
         loop {
-            self.cursor.reset_position();
+            self.cursor.clear();
             match self.cursor.advance() {
                 Some(' ' | '\r' | '\t' | '\n') => (),
                 Some('(') => break self.token(TokenKind::LeftParen),
@@ -50,23 +50,23 @@ impl InnerScanner<'_> {
                 Some('+') => break self.token(TokenKind::Plus),
                 Some(';') => break self.token(TokenKind::Semicolon),
                 Some('*') => break self.token(TokenKind::Star),
-                Some('!') if self.cursor.match_current('=') => {
+                Some('!') if self.cursor.advance_match('=') => {
                     break self.token(TokenKind::BangEqual)
                 }
                 Some('!') => break self.token(TokenKind::Bang),
-                Some('=') if self.cursor.match_current('=') => {
+                Some('=') if self.cursor.advance_match('=') => {
                     break self.token(TokenKind::EqualEqual)
                 }
                 Some('=') => break self.token(TokenKind::Equal),
-                Some('<') if self.cursor.match_current('=') => {
+                Some('<') if self.cursor.advance_match('=') => {
                     break self.token(TokenKind::LessEqual)
                 }
                 Some('<') => break self.token(TokenKind::Less),
-                Some('>') if self.cursor.match_current('=') => {
+                Some('>') if self.cursor.advance_match('=') => {
                     break self.token(TokenKind::GreaterEqual)
                 }
                 Some('>') => break self.token(TokenKind::Greater),
-                Some('/') if self.cursor.match_current('/') => {
+                Some('/') if self.cursor.advance_match('/') => {
                     self.cursor.advance_while(|c| c != '\n')
                 }
                 Some('/') => break self.token(TokenKind::Slash),
@@ -82,7 +82,7 @@ impl InnerScanner<'_> {
     fn token(&mut self, kind: TokenKind) -> Token {
         Token {
             kind,
-            lexeme: self.cursor.current_str().into(),
+            lexeme: self.cursor.str().into(),
             line: self.cursor.line(),
         }
     }
@@ -92,30 +92,33 @@ impl InnerScanner<'_> {
         let is_terminated = !self.cursor.is_at_end();
         let value = if is_terminated {
             self.cursor.advance();
-            trim_bounds(self.cursor.current_str(), 1).to_string()
+            trim_bounds(self.cursor.str(), 1).to_string()
         } else {
-            let s = self.cursor.current_str();
+            let s = self.cursor.str();
             s[1..].to_string()
         };
-        self.token(TokenKind::String { value, is_terminated })
+        self.token(TokenKind::String {
+            value,
+            is_terminated,
+        })
     }
 
     fn number_token(&mut self) -> Token {
         self.cursor.advance_while(|c| c.is_ascii_digit());
 
-        if let (Some('.'), Some('0'..='9')) = (self.cursor.peek(), self.cursor.peek_next()) {
+        if let (Some('.'), Some('0'..='9')) = (self.cursor.peek(), self.cursor.peek_2()) {
             self.cursor.advance();
             self.cursor.advance_while(|c| c.is_ascii_digit());
         };
 
-        let value: f64 = self.cursor.current_str().parse().unwrap();
+        let value: f64 = self.cursor.str().parse().unwrap();
         self.token(TokenKind::Number(value))
     }
 
     fn ident_token(&mut self) -> Token {
         self.cursor
             .advance_while(|c| matches!(c, 'A'..='Z' | 'a'..='z' | '_'));
-        let text = self.cursor.current_str();
+        let text = self.cursor.str();
         let kind = match text {
             "and" => TokenKind::And,
             "class" => TokenKind::Class,
@@ -187,7 +190,10 @@ mod test {
         assert_eq!(
             scanner.advance(),
             Token {
-                kind: TokenKind::String { value: "string".into(), is_terminated: true },
+                kind: TokenKind::String {
+                    value: "string".into(),
+                    is_terminated: true
+                },
                 lexeme: r#""string""#.into(),
                 line: 1
             }

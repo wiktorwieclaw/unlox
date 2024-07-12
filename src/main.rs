@@ -5,8 +5,6 @@ use std::{
     process,
 };
 
-use lox::{interpret, lex, parse};
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -23,7 +21,7 @@ fn main() {
 fn run_file(path: &str) -> io::Result<()> {
     let code = fs::read_to_string(path)?;
     run(&code);
-    if lox::error::HAD_ERROR.with(|e| e.get()) {
+    if lox::HAD_ERROR.with(|e| e.get()) {
         process::exit(65);
     }
     Ok(())
@@ -38,7 +36,7 @@ fn run_prompt() -> io::Result<()> {
         match lines.next() {
             Some(line) => {
                 run(&line?);
-                lox::error::HAD_ERROR.with(|e| e.set(false))
+                lox::HAD_ERROR.with(|e| e.set(false))
             }
             None => break,
         }
@@ -47,11 +45,16 @@ fn run_prompt() -> io::Result<()> {
 }
 
 fn run(code: &str) {
-    let scanner = lex::Scanner::new(code);
-    let mut parser = parse::Parser::new(scanner);
-    let ast = parser.parse();
-    if lox::error::HAD_ERROR.with(|e| e.get()) {
+    let scanner = lexer::Scanner::new(code);
+    let ast = match parse::parse(scanner) {
+        Ok(ast) => ast,
+        Err(e) => {
+            lox::error(e.token.line, &e.message);
+            return;
+        }
+    };
+    if lox::HAD_ERROR.with(|e| e.get()) {
         return;
     }
-    println!("{:?}", interpret::interpret(ast.unwrap()));
+    println!("{:?}", interpret::interpret(ast));
 }

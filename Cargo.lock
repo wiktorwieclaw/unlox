@@ -3,10 +3,32 @@
 version = 3
 
 [[package]]
+name = "ast"
+version = "0.1.0"
+
+[[package]]
+name = "interpret"
+version = "0.1.0"
+dependencies = [
+ "ast",
+]
+
+[[package]]
+name = "lexer"
+version = "0.1.0"
+dependencies = [
+ "ast",
+]
+
+[[package]]
 name = "lox"
 version = "0.1.0"
 dependencies = [
+ "ast",
+ "interpret",
+ "lexer",
  "once_cell",
+ "parse",
 ]
 
 [[package]]
@@ -14,3 +36,11 @@ name = "once_cell"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
+
+[[package]]
+name = "parse"
+version = "0.1.0"
+dependencies = [
+ "ast",
+ "lexer",
+]

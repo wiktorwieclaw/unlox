@@ -1,3 +1,6 @@
+[workspace]
+members = ["ast", "interpret", "lexer", "parse"]
+
 [package]
 name = "lox"
 version = "0.1.0"
@@ -7,3 +10,7 @@ edition = "2021"
 
 [dependencies]
 once_cell = "1.15.0"
+ast = { path = "ast" }
+lexer = { path = "lexer" }
+parse = { path = "parse" }
+interpret = { path = "interpret" }
