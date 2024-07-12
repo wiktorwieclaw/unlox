@@ -10,6 +10,8 @@
 use ast::{Expr, Lit, Token, TokenKind};
 use lexer::Scanner;
 
+#[derive(Debug, thiserror::Error)]
+#[error("[line {}]: {}", token.line, message)]
 pub struct Error {
     pub token: Token,
     pub message: String,

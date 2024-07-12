@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 ast = { path = "../ast" }
 lexer = { path = "../lexer" }
+thiserror = "1.0.62"

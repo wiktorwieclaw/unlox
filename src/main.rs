@@ -5,6 +5,13 @@ use std::{
     process,
 };
 
+use std::cell::Cell;
+
+thread_local! {
+    pub static HAD_ERROR: Cell<bool>  = const { Cell::new(false) };
+    pub static HAD_RUNTIME_ERROR: Cell<bool>  = const { Cell::new(false) };
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -21,8 +28,11 @@ fn main() {
 fn run_file(path: &str) -> io::Result<()> {
     let code = fs::read_to_string(path)?;
     run(&code);
-    if lox::HAD_ERROR.with(|e| e.get()) {
+    if HAD_ERROR.with(|e| e.get()) {
         process::exit(65);
+    }
+    if HAD_RUNTIME_ERROR.with(|e| e.get()) {
+        process::exit(70);
     }
     Ok(())
 }
@@ -36,7 +46,7 @@ fn run_prompt() -> io::Result<()> {
         match lines.next() {
             Some(line) => {
                 run(&line?);
-                lox::HAD_ERROR.with(|e| e.set(false))
+                HAD_ERROR.with(|e| e.set(false))
             }
             None => break,
         }
@@ -49,12 +59,15 @@ fn run(code: &str) {
     let ast = match parse::parse(scanner) {
         Ok(ast) => ast,
         Err(e) => {
-            lox::error(e.token.line, &e.message);
+            eprintln!("{e}");
             return;
         }
     };
-    if lox::HAD_ERROR.with(|e| e.get()) {
-        return;
+
+    match interpret::interpret(ast) {
+        Ok(result) => println!("{result}"),
+        Err(e) => {
+            eprintln!("{e}")
+        }
     }
-    println!("{:?}", interpret::interpret(ast));
 }
