@@ -1,18 +1,21 @@
 //! # Expression grammar:
-//! program        → statement* EOF ;
+//! program        → declaration* EOF ;
+//!
+//! declaration    → var_decl | statement ;
 //!
 //! statement      → expr_stmt | print_stmt ;
 //!
 //! expr_stmt      → expression ";" ;
 //! print_stmt     → "print" expression ";" ;
 //!
+//! var_decl       → "var" IDENTIFIER ( "=" expression )? ";" ;
 //! expression     → equality ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 //! term           → factor ( ( "-" | "+" ) factor )* ;
 //! factor         → unary ( ( "/" | "*" ) unary )* ;
 //! unary          → ( "!" | "-" ) unary | primary ;
-//! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+//! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
 
 use ast::{Expr, Lit, Stmt, Token, TokenKind};
 use lexer::Scanner;
@@ -35,19 +38,44 @@ type Result<T> = std::result::Result<T, Error>;
 pub fn parse(mut scanner: Scanner) -> Result<Vec<Stmt>> {
     let mut stmts = vec![];
     while !scanner.eof() {
-        stmts.push(statement(&mut scanner)?);
+        if let Some(stmt) = declaration(&mut scanner) {
+            stmts.push(stmt);
+        }
     }
     Ok(stmts)
 }
 
+fn declaration(scanner: &mut Scanner) -> Option<Stmt> {
+    let token = scanner.peek();
+    let result = match &token.kind {
+        TokenKind::Var => {
+            scanner.advance();
+            var_declaration(scanner)
+        }
+        _ => {
+            scanner.advance();
+            statement(scanner)
+        }
+    };
+    println!("{result:?}");
+    result.ok().or_else(|| {
+        synchronize(scanner);
+        None
+    })
+}
+
 fn statement(scanner: &mut Scanner) -> Result<Stmt> {
     let token = scanner.peek();
-    let stmt = match &token.kind {
-        TokenKind::Print => print_statement(scanner)?,
-        _ => expression_statement(scanner)?,
-    };
-    scanner.advance();
-    Ok(stmt)
+    match &token.kind {
+        TokenKind::Print => {
+            scanner.advance();
+            print_statement(scanner)
+        }
+        _ => {
+            scanner.advance();
+            expression_statement(scanner)
+        }
+    }
 }
 
 fn print_statement(scanner: &mut Scanner) -> Result<Stmt> {
@@ -66,33 +94,21 @@ fn expression_statement(scanner: &mut Scanner) -> Result<Stmt> {
     Ok(Stmt::Expression(expr))
 }
 
-#[allow(dead_code)]
-fn synchronize(scanner: &mut Scanner) {
-    let mut current = scanner.advance();
-    loop {
-        if current.kind == TokenKind::Semicolon {
-            break;
-        }
-
-        let next = scanner.peek();
-
-        if matches!(
-            next.kind,
-            TokenKind::Eof
-                | TokenKind::Class
-                | TokenKind::Fun
-                | TokenKind::Var
-                | TokenKind::For
-                | TokenKind::If
-                | TokenKind::While
-                | TokenKind::Print
-                | TokenKind::Return
-        ) {
-            break;
-        }
-
-        current = scanner.advance();
-    }
+fn var_declaration(scanner: &mut Scanner) -> Result<Stmt> {
+    let name = consume(scanner, TokenKind::Identifier, "Expected variable name.")?;
+    let token = scanner.peek();
+    let init = if token.kind == TokenKind::Equal {
+        scanner.advance();
+        Some(expression(scanner)?)
+    } else {
+        None
+    };
+    consume(
+        scanner,
+        TokenKind::Semicolon,
+        "Expected ';' after variable declaration.",
+    )?;
+    Ok(Stmt::Var { name, init })
 }
 
 fn expression(scanner: &mut Scanner) -> Result<Expr> {
@@ -193,11 +209,38 @@ fn primary(scanner: &mut Scanner) -> Result<Expr> {
     Ok(expr)
 }
 
-fn consume(scanner: &mut Scanner, kind: TokenKind, message: impl ToString) -> Result<()> {
+fn consume(scanner: &mut Scanner, kind: TokenKind, message: impl ToString) -> Result<Token> {
     let token = scanner.peek();
     if token.kind != kind {
         return Err(Error::new(token.clone(), message.to_string()));
     }
-    scanner.advance();
-    Ok(())
+    Ok(scanner.advance())
+}
+
+fn synchronize(scanner: &mut Scanner) {
+    let mut current = scanner.advance();
+    loop {
+        if current.kind == TokenKind::Semicolon {
+            break;
+        }
+
+        let next = scanner.peek();
+
+        if matches!(
+            next.kind,
+            TokenKind::Eof
+                | TokenKind::Class
+                | TokenKind::Fun
+                | TokenKind::Var
+                | TokenKind::For
+                | TokenKind::If
+                | TokenKind::While
+                | TokenKind::Print
+                | TokenKind::Return
+        ) {
+            break;
+        }
+
+        current = scanner.advance();
+    }
 }

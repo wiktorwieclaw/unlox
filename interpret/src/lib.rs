@@ -29,6 +29,7 @@ pub fn interpret(stmts: Vec<Stmt>) -> Result<()> {
     for stmt in stmts {
         match stmt {
             Stmt::Print(expr) => println!("{}", evaluate(expr)?),
+            Stmt::Var { .. } => todo!(),
             Stmt::Expression(expr) => {
                 evaluate(expr)?;
             }

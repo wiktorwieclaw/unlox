@@ -25,6 +25,14 @@ impl<'src> Scanner<'src> {
         }
     }
 
+    pub fn try_match(&mut self, pred: impl FnOnce(&TokenKind) -> bool) -> Option<Token> {
+        if pred(&self.peek().kind) {
+            Some(self.advance())
+        } else {
+            None
+        }
+    }
+
     pub fn peek(&mut self) -> &Token {
         self.peeked.get_or_insert_with(|| self.inner.advance())
     }
@@ -54,23 +62,23 @@ impl InnerScanner<'_> {
                 Some('+') => break self.token(TokenKind::Plus),
                 Some(';') => break self.token(TokenKind::Semicolon),
                 Some('*') => break self.token(TokenKind::Star),
-                Some('!') if self.selection.advance_match('=') => {
+                Some('!') if self.selection.try_match('=').is_some() => {
                     break self.token(TokenKind::BangEqual)
                 }
                 Some('!') => break self.token(TokenKind::Bang),
-                Some('=') if self.selection.advance_match('=') => {
+                Some('=') if self.selection.try_match('=').is_some() => {
                     break self.token(TokenKind::EqualEqual)
                 }
                 Some('=') => break self.token(TokenKind::Equal),
-                Some('<') if self.selection.advance_match('=') => {
+                Some('<') if self.selection.try_match('=').is_some() => {
                     break self.token(TokenKind::LessEqual)
                 }
                 Some('<') => break self.token(TokenKind::Less),
-                Some('>') if self.selection.advance_match('=') => {
+                Some('>') if self.selection.try_match('=').is_some() => {
                     break self.token(TokenKind::GreaterEqual)
                 }
                 Some('>') => break self.token(TokenKind::Greater),
-                Some('/') if self.selection.advance_match('/') => {
+                Some('/') if self.selection.try_match('/').is_some() => {
                     self.selection.advance_while(|c| c != '\n')
                 }
                 Some('/') => break self.token(TokenKind::Slash),

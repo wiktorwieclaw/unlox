@@ -27,17 +27,6 @@ impl<'a> Selection<'a> {
         Some(c)
     }
 
-    /// Advances the end of the selection if the next character matches the `expected` character.
-    pub fn advance_match(&mut self, expected: char) -> bool {
-        match self.peek() {
-            Some(c) if c == expected => {
-                self.end += 1;
-                true
-            }
-            _ => false,
-        }
-    }
-
     /// Continuously advances the end of the selection while the `pred` predicate is satisfied.
     pub fn advance_while(&mut self, pred: impl Fn(char) -> bool) {
         loop {
@@ -45,6 +34,17 @@ impl<'a> Selection<'a> {
                 Some(c) if pred(c) => self.advance(),
                 _ => break,
             };
+        }
+    }
+
+    /// Advances the end of the selection if the next character matches the `expected` character.
+    pub fn try_match(&mut self, expected: char) -> Option<char> {
+        match self.peek() {
+            Some(c) if c == expected => {
+                self.end += 1;
+                Some(c)
+            }
+            _ => None,
         }
     }
 

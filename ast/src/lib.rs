@@ -6,6 +6,7 @@ use std::fmt::{self, Display};
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Print(Expr),
+    Var { name: Token, init: Option<Expr> },
     Expression(Expr),
 }
 
