@@ -52,12 +52,9 @@ fn declaration(scanner: &mut Scanner) -> Option<Stmt> {
             scanner.advance();
             var_declaration(scanner)
         }
-        _ => {
-            scanner.advance();
-            statement(scanner)
-        }
+        _ => statement(scanner),
     };
-    result.ok().or_else(|| {
+    result.inspect_err(|e| eprintln!("{e}")).ok().or_else(|| {
         synchronize(scanner);
         None
     })
@@ -70,10 +67,7 @@ fn statement(scanner: &mut Scanner) -> Result<Stmt> {
             scanner.advance();
             print_statement(scanner)
         }
-        _ => {
-            scanner.advance();
-            expression_statement(scanner)
-        }
+        _ => expression_statement(scanner),
     }
 }
 
