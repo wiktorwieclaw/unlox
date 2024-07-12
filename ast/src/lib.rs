@@ -4,6 +4,12 @@ pub use token::{Token, TokenKind};
 use std::fmt::{self, Display};
 
 #[derive(Debug, Clone)]
+pub enum Stmt {
+    Print(Expr),
+    Expression(Expr),
+}
+
+#[derive(Debug, Clone)]
 pub enum Expr {
     Binary(Token, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),

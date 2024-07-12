@@ -1,4 +1,11 @@
 //! # Expression grammar:
+//! program        → statement* EOF ;
+//!
+//! statement      → expr_stmt | print_stmt ;
+//!
+//! expr_stmt      → expression ";" ;
+//! print_stmt     → "print" expression ";" ;
+//!
 //! expression     → equality ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -7,7 +14,7 @@
 //! unary          → ( "!" | "-" ) unary | primary ;
 //! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 
-use ast::{Expr, Lit, Token, TokenKind};
+use ast::{Expr, Lit, Stmt, Token, TokenKind};
 use lexer::Scanner;
 
 #[derive(Debug, thiserror::Error)]
@@ -25,8 +32,38 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut scanner: Scanner) -> Result<Expr> {
-    expression(&mut scanner)
+pub fn parse(mut scanner: Scanner) -> Result<Vec<Stmt>> {
+    let mut stmts = vec![];
+    while !scanner.eof() {
+        stmts.push(statement(&mut scanner)?);
+    }
+    Ok(stmts)
+}
+
+fn statement(scanner: &mut Scanner) -> Result<Stmt> {
+    let token = scanner.peek();
+    let stmt = match &token.kind {
+        TokenKind::Print => print_statement(scanner)?,
+        _ => expression_statement(scanner)?,
+    };
+    scanner.advance();
+    Ok(stmt)
+}
+
+fn print_statement(scanner: &mut Scanner) -> Result<Stmt> {
+    let expr = expression(scanner)?;
+    consume(scanner, TokenKind::Semicolon, "Expected ';' after value.")?;
+    Ok(Stmt::Print(expr))
+}
+
+fn expression_statement(scanner: &mut Scanner) -> Result<Stmt> {
+    let expr = expression(scanner)?;
+    consume(
+        scanner,
+        TokenKind::Semicolon,
+        "Expected ';' after expression.",
+    )?;
+    Ok(Stmt::Expression(expr))
 }
 
 #[allow(dead_code)]
@@ -142,13 +179,25 @@ fn primary(scanner: &mut Scanner) -> Result<Expr> {
             }
             Expr::Grouping(Box::new(expr))
         }
-        _ => {
+        TokenKind::Eof => {
             return Err(Error::new(
                 token.clone(),
-                "Expected a literal or grouping".into(),
+                "Unexpected end of file.".to_owned(),
             ));
+        }
+        _ => {
+            return Err(Error::new(token.clone(), "Expected expression.".to_owned()));
         }
     };
     scanner.advance();
     Ok(expr)
+}
+
+fn consume(scanner: &mut Scanner, kind: TokenKind, message: impl ToString) -> Result<()> {
+    let token = scanner.peek();
+    if token.kind != kind {
+        return Err(Error::new(token.clone(), message.to_string()));
+    }
+    scanner.advance();
+    Ok(())
 }

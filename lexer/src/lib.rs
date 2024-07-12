@@ -28,6 +28,10 @@ impl<'src> Scanner<'src> {
     pub fn peek(&mut self) -> &Token {
         self.peeked.get_or_insert_with(|| self.inner.advance())
     }
+
+    pub fn eof(&self) -> bool {
+        self.inner.selection.eof()
+    }
 }
 
 struct InnerScanner<'src> {

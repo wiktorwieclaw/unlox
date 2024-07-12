@@ -64,10 +64,7 @@ fn run(code: &str) {
         }
     };
 
-    match interpret::interpret(ast) {
-        Ok(result) => println!("{result}"),
-        Err(e) => {
-            eprintln!("{e}")
-        }
+    if let Err(e) = interpret::interpret(ast) {
+        eprintln!("{e}");
     }
 }

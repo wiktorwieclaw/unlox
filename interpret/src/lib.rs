@@ -1,4 +1,4 @@
-use ast::{Expr, Lit, Token, TokenKind};
+use ast::{Expr, Lit, Stmt, Token, TokenKind};
 
 #[derive(Debug, thiserror::Error)]
 #[error("[Line {}]: {}", operator.line, kind)]
@@ -25,12 +25,24 @@ pub enum ErrorKind {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub fn interpret(expr: Expr) -> Result<Lit> {
+pub fn interpret(stmts: Vec<Stmt>) -> Result<()> {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Print(expr) => println!("{}", evaluate(expr)?),
+            Stmt::Expression(expr) => {
+                evaluate(expr)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn evaluate(expr: Expr) -> Result<Lit> {
     let lit = match expr {
         Expr::Literal(value) => value,
-        Expr::Grouping(expr) => interpret(*expr)?,
+        Expr::Grouping(expr) => evaluate(*expr)?,
         Expr::Unary(operator, right) => {
-            let right = interpret(*right)?;
+            let right = evaluate(*right)?;
             match (&operator.kind, right) {
                 (TokenKind::Bang, right) => Lit::Bool(!right.is_truthy()),
                 (TokenKind::Minus, Lit::Number(n)) => Lit::Number(-n),
@@ -41,8 +53,8 @@ pub fn interpret(expr: Expr) -> Result<Lit> {
             }
         }
         Expr::Binary(operator, left, right) => {
-            let left = interpret(*left)?;
-            let right = interpret(*right)?;
+            let left = evaluate(*left)?;
+            let right = evaluate(*right)?;
 
             match (&operator.kind, left, right) {
                 (TokenKind::Minus, Lit::Number(l), Lit::Number(r)) => Lit::Number(l - r),
