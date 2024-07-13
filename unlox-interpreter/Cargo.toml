@@ -1,8 +1,8 @@
 [package]
-name = "interpret"
+name = "unlox-interpreter"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ast = { path = "../ast" }
+unlox-ast = { path = "../unlox-ast" }
 thiserror = "1.0.62"

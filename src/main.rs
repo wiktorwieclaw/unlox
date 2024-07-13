@@ -1,13 +1,12 @@
 use std::{
+    cell::Cell,
     cmp::Ordering,
     env, fs,
     io::{self, BufRead, Write},
     process,
 };
-
-use std::cell::Cell;
-
-use interpret::Interpreter;
+use unlox_interpreter::Interpreter;
+use unlox_lexer::Lexer;
 
 thread_local! {
     pub static HAD_ERROR: Cell<bool>  = const { Cell::new(false) };
@@ -59,8 +58,8 @@ fn run_prompt() -> io::Result<()> {
 }
 
 fn run(code: &str, interpreter: &mut Interpreter) {
-    let scanner = lexer::Scanner::new(code);
-    let ast = match parse::parse(scanner) {
+    let lexer = Lexer::new(code);
+    let ast = match unlox_parse::parse(lexer) {
         Ok(ast) => ast,
         Err(e) => {
             eprintln!("[Line {}]: {e}", e.token.line);

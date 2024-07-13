@@ -17,8 +17,10 @@
 //! unary          → ( "!" | "-" ) unary | primary ;
 //! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
 
-use ast::{Expr, Lit, Stmt, Token, TokenKind};
-use lexer::Scanner;
+use unlox_ast::{
+    tokens::{TokenStream, TokenStreamExt},
+    Expr, Lit, Stmt, Token, TokenKind,
+};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{message}")]
@@ -35,132 +37,132 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut scanner: Scanner) -> Result<Vec<Stmt>> {
+pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Stmt>> {
     let mut stmts = vec![];
-    while !scanner.eof() {
-        if let Some(stmt) = declaration(&mut scanner) {
+    while !stream.eof() {
+        if let Some(stmt) = declaration(&mut stream) {
             stmts.push(stmt);
         }
     }
     Ok(stmts)
 }
 
-fn declaration(scanner: &mut Scanner) -> Option<Stmt> {
-    let token = scanner.peek();
+fn declaration(stream: &mut impl TokenStream) -> Option<Stmt> {
+    let token = stream.peek();
     let result = match &token.kind {
         TokenKind::Var => {
-            scanner.advance();
-            var_declaration(scanner)
+            stream.next();
+            var_declaration(stream)
         }
-        _ => statement(scanner),
+        _ => statement(stream),
     };
     result.inspect_err(|e| eprintln!("{e}")).ok().or_else(|| {
-        synchronize(scanner);
+        synchronize(stream);
         None
     })
 }
 
-fn statement(scanner: &mut Scanner) -> Result<Stmt> {
-    let token = scanner.peek();
+fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+    let token = stream.peek();
     match &token.kind {
         TokenKind::Print => {
-            scanner.advance();
-            print_statement(scanner)
+            stream.next();
+            print_statement(stream)
         }
-        _ => expression_statement(scanner),
+        _ => expression_statement(stream),
     }
 }
 
-fn print_statement(scanner: &mut Scanner) -> Result<Stmt> {
-    let expr = expression(scanner)?;
-    consume(scanner, TokenKind::Semicolon, "Expected ';' after value.")?;
+fn print_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+    let expr = expression(stream)?;
+    consume(stream, TokenKind::Semicolon, "Expected ';' after value.")?;
     Ok(Stmt::Print(expr))
 }
 
-fn expression_statement(scanner: &mut Scanner) -> Result<Stmt> {
-    let expr = expression(scanner)?;
+fn expression_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+    let expr = expression(stream)?;
     consume(
-        scanner,
+        stream,
         TokenKind::Semicolon,
         "Expected ';' after expression.",
     )?;
     Ok(Stmt::Expression(expr))
 }
 
-fn var_declaration(scanner: &mut Scanner) -> Result<Stmt> {
-    let name = consume(scanner, TokenKind::Identifier, "Expected variable name.")?;
-    let token = scanner.peek();
+fn var_declaration(stream: &mut impl TokenStream) -> Result<Stmt> {
+    let name = consume(stream, TokenKind::Identifier, "Expected variable name.")?;
+    let token = stream.peek();
     let init = if token.kind == TokenKind::Equal {
-        scanner.advance();
-        Some(expression(scanner)?)
+        stream.next();
+        Some(expression(stream)?)
     } else {
         None
     };
     consume(
-        scanner,
+        stream,
         TokenKind::Semicolon,
         "Expected ';' after variable declaration.",
     )?;
     Ok(Stmt::VarDecl { name, init })
 }
 
-fn expression(scanner: &mut Scanner) -> Result<Expr> {
-    equality(scanner)
+fn expression(stream: &mut impl TokenStream) -> Result<Expr> {
+    equality(stream)
 }
 
-fn equality(scanner: &mut Scanner) -> Result<Expr> {
-    let mut expr = comparison(scanner)?;
-    while let TokenKind::BangEqual | TokenKind::EqualEqual = scanner.peek().kind {
-        let token = scanner.advance();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(comparison(scanner)?));
+fn equality(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = comparison(stream)?;
+    while let TokenKind::BangEqual | TokenKind::EqualEqual = stream.peek().kind {
+        let token = stream.next();
+        expr = Expr::Binary(token, Box::new(expr), Box::new(comparison(stream)?));
     }
     Ok(expr)
 }
 
-fn comparison(scanner: &mut Scanner) -> Result<Expr> {
-    let mut expr = term(scanner)?;
+fn comparison(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = term(stream)?;
     while let TokenKind::Less
     | TokenKind::LessEqual
     | TokenKind::Greater
-    | TokenKind::GreaterEqual = scanner.peek().kind
+    | TokenKind::GreaterEqual = stream.peek().kind
     {
-        let token = scanner.advance();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(term(scanner)?));
+        let token = stream.next();
+        expr = Expr::Binary(token, Box::new(expr), Box::new(term(stream)?));
     }
     Ok(expr)
 }
 
-fn term(scanner: &mut Scanner) -> Result<Expr> {
-    let mut expr = factor(scanner)?;
-    while let TokenKind::Minus | TokenKind::Plus = scanner.peek().kind {
-        let token = scanner.advance();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(factor(scanner)?));
+fn term(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = factor(stream)?;
+    while let TokenKind::Minus | TokenKind::Plus = stream.peek().kind {
+        let token = stream.next();
+        expr = Expr::Binary(token, Box::new(expr), Box::new(factor(stream)?));
     }
     Ok(expr)
 }
 
-fn factor(scanner: &mut Scanner) -> Result<Expr> {
-    let mut expr = unary(scanner)?;
-    while let TokenKind::Slash | TokenKind::Star = scanner.peek().kind {
-        let token = scanner.advance();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(unary(scanner)?));
+fn factor(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = unary(stream)?;
+    while let TokenKind::Slash | TokenKind::Star = stream.peek().kind {
+        let token = stream.next();
+        expr = Expr::Binary(token, Box::new(expr), Box::new(unary(stream)?));
     }
     Ok(expr)
 }
 
-fn unary(scanner: &mut Scanner) -> Result<Expr> {
-    match scanner.peek().kind {
+fn unary(stream: &mut impl TokenStream) -> Result<Expr> {
+    match stream.peek().kind {
         TokenKind::Bang | TokenKind::Minus => {
-            let token = scanner.advance();
-            let expr = Expr::Unary(token, Box::new(unary(scanner)?));
+            let token = stream.next();
+            let expr = Expr::Unary(token, Box::new(unary(stream)?));
             Ok(expr)
         }
-        _ => primary(scanner),
+        _ => primary(stream),
     }
 }
 
-fn primary(scanner: &mut Scanner) -> Result<Expr> {
-    let token = scanner.peek();
+fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
+    let token = stream.peek();
     let expr = match &token.kind {
         TokenKind::False => Expr::Literal(Lit::Bool(false)),
         TokenKind::True => Expr::Literal(Lit::Bool(true)),
@@ -177,9 +179,9 @@ fn primary(scanner: &mut Scanner) -> Result<Expr> {
             return Err(Error::new(token.clone(), "Unterminated string.".into()));
         }
         TokenKind::LeftParen => {
-            scanner.advance();
-            let expr = expression(scanner)?;
-            let token = scanner.peek();
+            stream.next();
+            let expr = expression(stream)?;
+            let token = stream.peek();
             if token.kind != TokenKind::RightParen {
                 return Err(Error::new(
                     token.clone(),
@@ -199,26 +201,30 @@ fn primary(scanner: &mut Scanner) -> Result<Expr> {
             return Err(Error::new(token.clone(), "Expected expression.".to_owned()));
         }
     };
-    scanner.advance();
+    stream.next();
     Ok(expr)
 }
 
-fn consume(scanner: &mut Scanner, kind: TokenKind, message: impl ToString) -> Result<Token> {
-    let token = scanner.peek();
+fn consume(
+    stream: &mut impl TokenStream,
+    kind: TokenKind,
+    message: impl ToString,
+) -> Result<Token> {
+    let token = stream.peek();
     if token.kind != kind {
         return Err(Error::new(token.clone(), message.to_string()));
     }
-    Ok(scanner.advance())
+    Ok(stream.next())
 }
 
-fn synchronize(scanner: &mut Scanner) {
-    let mut current = scanner.advance();
+fn synchronize(stream: &mut impl TokenStream) {
+    let mut current = stream.next();
     loop {
         if current.kind == TokenKind::Semicolon {
             break;
         }
 
-        let next = scanner.peek();
+        let next = stream.peek();
 
         if matches!(
             next.kind,
@@ -235,6 +241,6 @@ fn synchronize(scanner: &mut Scanner) {
             break;
         }
 
-        current = scanner.advance();
+        current = stream.next();
     }
 }

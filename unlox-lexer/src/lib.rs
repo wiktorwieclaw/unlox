@@ -1,52 +1,42 @@
-use ast::token::{Token, TokenKind};
 use selection::Selection;
+use unlox_tokens::{Token, TokenKind, TokenStream};
 
 mod selection;
 
-pub struct Scanner<'src> {
-    inner: InnerScanner<'src>,
+pub struct Lexer<'src> {
+    inner: LexerInner<'src>,
     peeked: Option<Token>,
 }
 
-impl<'src> Scanner<'src> {
+impl<'src> Lexer<'src> {
     pub fn new(source: &'src str) -> Self {
-        Scanner {
-            inner: InnerScanner {
+        Lexer {
+            inner: LexerInner {
                 selection: Selection::new(source),
             },
             peeked: None,
         }
     }
+}
 
-    pub fn advance(&mut self) -> Token {
+impl TokenStream for Lexer<'_> {
+    fn next(&mut self) -> Token {
         match self.peeked.take() {
             Some(token) => token,
             None => self.inner.advance(),
         }
     }
 
-    pub fn try_match(&mut self, pred: impl FnOnce(&TokenKind) -> bool) -> Option<Token> {
-        if pred(&self.peek().kind) {
-            Some(self.advance())
-        } else {
-            None
-        }
-    }
-
-    pub fn peek(&mut self) -> &Token {
+    fn peek(&mut self) -> &Token {
         self.peeked.get_or_insert_with(|| self.inner.advance())
-    }
-
-    pub fn eof(&self) -> bool {
-        self.inner.selection.eof()
     }
 }
 
-struct InnerScanner<'src> {
+struct LexerInner<'src> {
     selection: Selection<'src>,
 }
 
-impl InnerScanner<'_> {
+impl LexerInner<'_> {
     fn advance(&mut self) -> Token {
         loop {
             self.selection.clear();
@@ -161,9 +151,9 @@ mod test {
 
     #[test]
     fn scans_parens() {
-        let mut scanner = Scanner::new("()");
+        let mut lexer = Lexer::new("()");
         assert_eq!(
-            scanner.advance(),
+            lexer.next(),
             Token {
                 kind: TokenKind::LeftParen,
                 lexeme: "(".into(),
@@ -171,7 +161,7 @@ mod test {
             }
         );
         assert_eq!(
-            scanner.advance(),
+            lexer.next(),
             Token {
                 kind: TokenKind::RightParen,
                 lexeme: ")".into(),
@@ -182,9 +172,9 @@ mod test {
 
     #[test]
     fn scans_float() {
-        let mut scanner = Scanner::new("12.345");
+        let mut lexer = Lexer::new("12.345");
         assert_eq!(
-            scanner.advance(),
+            lexer.next(),
             Token {
                 kind: TokenKind::Number(12.345),
                 lexeme: "12.345".into(),
@@ -195,9 +185,9 @@ mod test {
 
     #[test]
     fn scans_string() {
-        let mut scanner = Scanner::new(r#""string""#);
+        let mut lexer = Lexer::new(r#""string""#);
         assert_eq!(
-            scanner.advance(),
+            lexer.next(),
             Token {
                 kind: TokenKind::String {
                     value: "string".into(),

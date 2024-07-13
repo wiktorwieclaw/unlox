@@ -1,8 +1,14 @@
 [workspace]
-members = ["ast", "interpret", "lexer", "parse"]
+members = [
+    "unlox-ast",
+    "unlox-interpreter",
+    "unlox-lexer",
+    "unlox-parse",
+    "unlox-tokens",
+]
 
 [package]
-name = "lox"
+name = "unlox"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +16,8 @@ edition = "2021"
 
 [dependencies]
 once_cell = "1.15.0"
-ast = { path = "ast" }
-lexer = { path = "lexer" }
-parse = { path = "parse" }
-interpret = { path = "interpret" }
+unlox-ast = { path = "unlox-ast" }
+unlox-lexer = { path = "unlox-lexer" }
+unlox-parse = { path = "unlox-parse" }
+unlox-interpreter = { path = "unlox-interpreter" }
+unlox-tokens = { path = "unlox-tokens" }

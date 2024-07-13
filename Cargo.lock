@@ -3,49 +3,10 @@
 version = 3
 
 [[package]]
-name = "ast"
-version = "0.1.0"
-
-[[package]]
-name = "interpret"
-version = "0.1.0"
-dependencies = [
- "ast",
- "thiserror",
-]
-
-[[package]]
-name = "lexer"
-version = "0.1.0"
-dependencies = [
- "ast",
-]
-
-[[package]]
-name = "lox"
-version = "0.1.0"
-dependencies = [
- "ast",
- "interpret",
- "lexer",
- "once_cell",
- "parse",
-]
-
-[[package]]
 name = "once_cell"
-version = "1.15.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
-
-[[package]]
-name = "parse"
-version = "0.1.0"
-dependencies = [
- "ast",
- "lexer",
- "thiserror",
-]
+checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "proc-macro2"
@@ -67,9 +28,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.70"
+version = "2.0.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f0209b68b3613b093e0ec905354eccaedcfe83b8cb37cbdeae64026c3064c16"
+checksum = "b146dcf730474b4bcd16c311627b31ede9ab149045db4d6088b3becaea046462"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -101,3 +62,49 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "unlox"
+version = "0.1.0"
+dependencies = [
+ "once_cell",
+ "unlox-ast",
+ "unlox-interpreter",
+ "unlox-lexer",
+ "unlox-parse",
+ "unlox-tokens",
+]
+
+[[package]]
+name = "unlox-ast"
+version = "0.1.0"
+dependencies = [
+ "unlox-tokens",
+]
+
+[[package]]
+name = "unlox-interpreter"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "unlox-ast",
+]
+
+[[package]]
+name = "unlox-lexer"
+version = "0.1.0"
+dependencies = [
+ "unlox-tokens",
+]
+
+[[package]]
+name = "unlox-parse"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "unlox-ast",
+]
+
+[[package]]
+name = "unlox-tokens"
+version = "0.1.0"

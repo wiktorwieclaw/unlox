@@ -59,3 +59,27 @@ pub enum TokenKind {
     // end of input
     Eof,
 }
+
+pub trait TokenStream {
+    fn next(&mut self) -> Token;
+    fn peek(&mut self) -> &Token;
+}
+
+pub trait TokenStreamExt {
+    fn try_match(&mut self, pred: impl FnOnce(&TokenKind) -> bool) -> Option<Token>;
+    fn eof(&mut self) -> bool;
+}
+
+impl<T: TokenStream> TokenStreamExt for T {
+    fn try_match(&mut self, pred: impl FnOnce(&TokenKind) -> bool) -> Option<Token> {
+        if pred(&self.peek().kind) {
+            Some(self.next())
+        } else {
+            None
+        }
+    }
+
+    fn eof(&mut self) -> bool {
+        self.peek().kind == TokenKind::Eof
+    }
+}

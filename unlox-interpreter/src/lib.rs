@@ -1,5 +1,5 @@
 use crate::env::Environment;
-use ast::{Expr, Lit, Stmt, Token, TokenKind};
+use unlox_ast::{Expr, Lit, Stmt, Token, TokenKind};
 
 mod env;
 

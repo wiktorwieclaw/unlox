@@ -1,6 +1,6 @@
 use crate::{Error, Result};
-use ast::{Lit, Token};
 use std::collections::HashMap;
+use unlox_ast::{Lit, Token};
 
 #[derive(Default)]
 pub struct Environment(HashMap<String, Lit>);

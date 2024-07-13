@@ -1,5 +1,5 @@
-pub mod token;
-pub use token::{Token, TokenKind};
+pub use tokens::{Token, TokenKind};
+pub use unlox_tokens as tokens;
 
 use std::fmt::{self, Display};
 
