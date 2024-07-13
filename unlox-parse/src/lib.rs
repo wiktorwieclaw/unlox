@@ -1,4 +1,5 @@
 //! # Expression grammar:
+//! ```text
 //! program        → declaration* EOF ;
 //!
 //! declaration    → var_decl | statement ;
@@ -10,12 +11,16 @@
 //!
 //! var_decl       → "var" IDENTIFIER ( "=" expression )? ";" ;
 //! expression     → equality ;
+//! assignment     → IDENTIFIER "=" assignment | equality;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 //! term           → factor ( ( "-" | "+" ) factor )* ;
 //! factor         → unary ( ( "/" | "*" ) unary )* ;
 //! unary          → ( "!" | "-" ) unary | primary ;
 //! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
+//! ```
+
+use std::fmt::Display;
 
 use unlox_ast::{
     tokens::{TokenStream, TokenStreamExt},
@@ -30,8 +35,8 @@ pub struct Error {
 }
 
 impl Error {
-    fn new(token: Token, message: String) -> Self {
-        Self { token, message }
+    fn new(token: Token, message: impl Display) -> Self {
+        Self { token, message: message.to_string() }
     }
 }
 
@@ -107,7 +112,22 @@ fn var_declaration(stream: &mut impl TokenStream) -> Result<Stmt> {
 }
 
 fn expression(stream: &mut impl TokenStream) -> Result<Expr> {
-    equality(stream)
+    assignment(stream)
+}
+
+fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
+    let expr = equality(stream)?;
+
+    if let Some(equals) = stream.try_match(|t| *t == TokenKind::Equal) {
+        let value = assignment(stream)?;
+        if let Expr::Variable(name) = expr {
+            Ok(Expr::Assign { name, value: Box::new(value) })
+        } else {
+            Err(Error::new(equals, "Invalid assignment target."))
+        }
+    } else {
+        Ok(expr)
+    }
 }
 
 fn equality(stream: &mut impl TokenStream) -> Result<Expr> {
@@ -176,7 +196,7 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
             is_terminated: false,
             ..
         } => {
-            return Err(Error::new(token.clone(), "Unterminated string.".into()));
+            return Err(Error::new(token.clone(), "Unterminated string."));
         }
         TokenKind::LeftParen => {
             stream.next();
@@ -185,7 +205,7 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
             if token.kind != TokenKind::RightParen {
                 return Err(Error::new(
                     token.clone(),
-                    r#"Expected ")" after expression."#.into(),
+                    r#"Expected ")" after expression."#,
                 ));
             }
             Expr::Grouping(Box::new(expr))

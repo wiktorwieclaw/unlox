@@ -17,6 +17,7 @@ pub enum Expr {
     Literal(Lit),
     Unary(Token, Box<Expr>),
     Variable(Token),
+    Assign { name: Token, value: Box<Expr> }
 }
 
 #[derive(Debug, Clone, PartialEq)]

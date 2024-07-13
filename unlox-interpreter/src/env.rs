@@ -15,6 +15,12 @@ impl Environment {
         self.0.insert(name.lexeme, value);
     }
 
+    pub fn assign(&mut self, name: &Token, value: Lit) -> Result<&Lit> {
+        let slot = self.get_mut(name)?;
+        *slot = value;
+        Ok(slot)
+    }
+
     pub fn get(&self, name: &Token) -> Result<&Lit> {
         self.0
             .get(&name.lexeme)

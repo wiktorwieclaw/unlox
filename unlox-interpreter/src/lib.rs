@@ -11,7 +11,7 @@ pub enum Error {
     ExpectedNumbers { operator: Token },
     #[error("Operands must be two numbers or two strings.")]
     ExpectedNumbersOrStrings { operator: Token },
-    #[error("Undefined variable {}", name.lexeme)]
+    #[error("Undefined variable {}.", name.lexeme)]
     UndefinedVariable { name: Token },
 }
 
@@ -57,7 +57,7 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn evaluate(&self, expr: Expr) -> Result<Lit> {
+    pub fn evaluate(&mut self, expr: Expr) -> Result<Lit> {
         let lit = match expr {
             Expr::Literal(value) => value,
             Expr::Grouping(expr) => self.evaluate(*expr)?,
@@ -108,6 +108,11 @@ impl Interpreter {
                 }
             }
             Expr::Variable(name) => self.env.get(&name)?.clone(),
+            Expr::Assign { name, value } => {
+                let value = self.evaluate(*value)?;
+                self.env.assign(&name, value)?.clone()
+            }
+
         };
         Ok(lit)
     }
