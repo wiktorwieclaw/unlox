@@ -62,12 +62,13 @@ fn run(code: &str, interpreter: &mut Interpreter) {
     let ast = match unlox_parse::parse(lexer) {
         Ok(ast) => ast,
         Err(e) => {
-            eprintln!("[Line {}]: {e}", e.token.line);
+            eprintln!("{e}");
             return;
         }
     };
 
-    if let Err(e) = interpreter.interpret(ast) {
-        eprintln!("[Line {}]: {e}", e.line());
+    match interpreter.interpret(ast) {
+        Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
+        Err(e) => eprintln!("{e}"),
     }
 }

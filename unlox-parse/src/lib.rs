@@ -4,8 +4,9 @@
 //!
 //! declaration    → var_decl | statement ;
 //!
-//! statement      → expr_stmt | print_stmt ;
+//! statement      → expr_stmt | print_stmt | block ;
 //!
+//! block          → "{" declaration* "}" ;
 //! expr_stmt      → expression ";" ;
 //! print_stmt     → "print" expression ";" ;
 //!
@@ -36,18 +37,19 @@ pub struct Error {
 
 impl Error {
     fn new(token: Token, message: impl Display) -> Self {
-        Self { token, message: message.to_string() }
+        Self {
+            token,
+            message: message.to_string(),
+        }
     }
 }
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Stmt>> {
+pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Option<Stmt>>> {
     let mut stmts = vec![];
     while !stream.eof() {
-        if let Some(stmt) = declaration(&mut stream) {
-            stmts.push(stmt);
-        }
+        stmts.push(declaration(&mut stream));
     }
     Ok(stmts)
 }
@@ -57,7 +59,7 @@ fn declaration(stream: &mut impl TokenStream) -> Option<Stmt> {
     let result = match &token.kind {
         TokenKind::Var => {
             stream.next();
-            var_declaration(stream)
+            var_decl(stream)
         }
         _ => statement(stream),
     };
@@ -74,13 +76,21 @@ fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
             stream.next();
             print_statement(stream)
         }
+        TokenKind::LeftBrace => {
+            stream.next();
+            Ok(Stmt::Block(block(stream)?))
+        }
         _ => expression_statement(stream),
     }
 }
 
 fn print_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let expr = expression(stream)?;
-    consume(stream, TokenKind::Semicolon, "Expected ';' after value.")?;
+    consume(
+        stream,
+        |t| *t == TokenKind::Semicolon,
+        "Expected ';' after value.",
+    )?;
     Ok(Stmt::Print(expr))
 }
 
@@ -88,14 +98,33 @@ fn expression_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let expr = expression(stream)?;
     consume(
         stream,
-        TokenKind::Semicolon,
+        |t| *t == TokenKind::Semicolon,
         "Expected ';' after expression.",
     )?;
     Ok(Stmt::Expression(expr))
 }
 
-fn var_declaration(stream: &mut impl TokenStream) -> Result<Stmt> {
-    let name = consume(stream, TokenKind::Identifier, "Expected variable name.")?;
+fn block(stream: &mut impl TokenStream) -> Result<Vec<Option<Stmt>>> {
+    let mut stmts = vec![];
+
+    while stream.peek().kind != TokenKind::RightBrace && !stream.eof() {
+        stmts.push(declaration(stream));
+    }
+
+    consume(
+        stream,
+        |t| *t == TokenKind::RightBrace,
+        "Expect '}' after block.",
+    )?;
+    Ok(stmts)
+}
+
+fn var_decl(stream: &mut impl TokenStream) -> Result<Stmt> {
+    let name = consume(
+        stream,
+        |t| *t == TokenKind::Identifier,
+        "Expected variable name.",
+    )?;
     let token = stream.peek();
     let init = if token.kind == TokenKind::Equal {
         stream.next();
@@ -105,7 +134,7 @@ fn var_declaration(stream: &mut impl TokenStream) -> Result<Stmt> {
     };
     consume(
         stream,
-        TokenKind::Semicolon,
+        |t| *t == TokenKind::Semicolon,
         "Expected ';' after variable declaration.",
     )?;
     Ok(Stmt::VarDecl { name, init })
@@ -121,7 +150,10 @@ fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
     if let Some(equals) = stream.try_match(|t| *t == TokenKind::Equal) {
         let value = assignment(stream)?;
         if let Expr::Variable(name) = expr {
-            Ok(Expr::Assign { name, value: Box::new(value) })
+            Ok(Expr::Assign {
+                name,
+                value: Box::new(value),
+            })
         } else {
             Err(Error::new(equals, "Invalid assignment target."))
         }
@@ -227,11 +259,11 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
 
 fn consume(
     stream: &mut impl TokenStream,
-    kind: TokenKind,
+    pred: impl FnOnce(&TokenKind) -> bool,
     message: impl ToString,
 ) -> Result<Token> {
     let token = stream.peek();
-    if token.kind != kind {
+    if !pred(&token.kind) {
         return Err(Error::new(token.clone(), message.to_string()));
     }
     Ok(stream.next())

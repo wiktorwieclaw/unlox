@@ -8,6 +8,7 @@ pub enum Stmt {
     Print(Expr),
     VarDecl { name: Token, init: Option<Expr> },
     Expression(Expr),
+    Block(Vec<Option<Stmt>>),
 }
 
 #[derive(Debug, Clone)]
@@ -17,7 +18,7 @@ pub enum Expr {
     Literal(Lit),
     Unary(Token, Box<Expr>),
     Variable(Token),
-    Assign { name: Token, value: Box<Expr> }
+    Assign { name: Token, value: Box<Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,36 +1,36 @@
-use crate::env::Environment;
+use env::{EnvIndex, EnvTree};
 use unlox_ast::{Expr, Lit, Stmt, Token, TokenKind};
 
 mod env;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Operand must be a number.")]
+    #[error("[Line {}]: Operand must be a number.", operator.line)]
     ExpectedNumber { operator: Token },
-    #[error("Operands must be numbers.")]
+    #[error("[Line {}]: Operands must be numbers.", operator.line)]
     ExpectedNumbers { operator: Token },
-    #[error("Operands must be two numbers or two strings.")]
+    #[error("[Line {}]: Operands must be two numbers or two strings.", operator.line)]
     ExpectedNumbersOrStrings { operator: Token },
-    #[error("Undefined variable {}.", name.lexeme)]
+    #[error("[Line {}]: Undefined variable {}.", name.line, name.lexeme)]
     UndefinedVariable { name: Token },
-}
-
-impl Error {
-    pub fn line(&self) -> u32 {
-        match self {
-            Error::ExpectedNumber { operator } => operator.line,
-            Error::ExpectedNumbers { operator } => operator.line,
-            Error::ExpectedNumbersOrStrings { operator } => operator.line,
-            Error::UndefinedVariable { name } => name.line,
-        }
-    }
+    #[error("Parsing error.")]
+    Parsing,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Default)]
 pub struct Interpreter {
-    env: Environment,
+    env_tree: EnvTree,
+    current_env: EnvIndex,
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self {
+            env_tree: EnvTree::default(),
+            current_env: EnvIndex::global(),
+        }
+    }
 }
 
 impl Interpreter {
@@ -38,8 +38,9 @@ impl Interpreter {
         Self::default()
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<()> {
+    pub fn interpret(&mut self, stmts: Vec<Option<Stmt>>) -> Result<()> {
         for stmt in stmts {
+            let stmt = stmt.ok_or(Error::Parsing)?;
             match stmt {
                 Stmt::Print(expr) => println!("{}", self.evaluate(expr)?),
                 Stmt::VarDecl { name, init } => {
@@ -47,17 +48,53 @@ impl Interpreter {
                         Some(init) => self.evaluate(init)?,
                         None => Lit::Nil,
                     };
-                    self.env.define(name, init);
+                    self.env_tree.env_mut(self.current_env).define(name, init);
                 }
                 Stmt::Expression(expr) => {
                     self.evaluate(expr)?;
+                }
+                Stmt::Block(stmts) => {
+                    self.execute_block(stmts)?;
                 }
             }
         }
         Ok(())
     }
 
-    pub fn evaluate(&mut self, expr: Expr) -> Result<Lit> {
+    fn execute(&mut self, stmt: Stmt) -> Result<()> {
+        match stmt {
+            Stmt::Print(expr) => println!("{}", self.evaluate(expr)?),
+            Stmt::VarDecl { name, init } => {
+                let init = match init {
+                    Some(init) => self.evaluate(init)?,
+                    None => Lit::Nil,
+                };
+                self.env_tree.env_mut(self.current_env).define(name, init);
+            }
+            Stmt::Expression(expr) => {
+                self.evaluate(expr)?;
+            }
+            Stmt::Block(stmts) => self.execute_block(stmts)?,
+        }
+        Ok(())
+    }
+
+    fn execute_block(&mut self, stmts: Vec<Option<Stmt>>) -> Result<()> {
+        let previous_env = self.current_env;
+        self.current_env = self.env_tree.create(previous_env);
+
+        let result: Result<()> = (|| {
+            for stmt in stmts {
+                self.execute(stmt.unwrap())?;
+            }
+            Ok(())
+        })();
+
+        self.current_env = previous_env;
+        result
+    }
+
+    fn evaluate(&mut self, expr: Expr) -> Result<Lit> {
         let lit = match expr {
             Expr::Literal(value) => value,
             Expr::Grouping(expr) => self.evaluate(*expr)?,
@@ -107,12 +144,13 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
-            Expr::Variable(name) => self.env.get(&name)?.clone(),
+            Expr::Variable(name) => self.env_tree.var(self.current_env, &name)?.clone(),
             Expr::Assign { name, value } => {
                 let value = self.evaluate(*value)?;
-                self.env.assign(&name, value)?.clone()
+                self.env_tree
+                    .assign(self.current_env, &name, value)?
+                    .clone()
             }
-
         };
         Ok(lit)
     }
