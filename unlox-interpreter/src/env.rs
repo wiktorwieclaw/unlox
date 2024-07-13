@@ -77,8 +77,8 @@ impl EnvTree {
         let mut env_idx = env;
 
         loop {
-            // Current borrow checker implementation doesn't allow mutable borrows of a env
-            // in a loop if the function also returns a reference to the env or it's part.
+            // Current borrow checker implementation doesn't allow mutable borrows of a variable
+            // in a loop if the function also returns a reference to the variable or it's part.
             // As a safe workaround, use non-mutable borrow in a loop and then reborrow it mutably.
             let env = self.env(env_idx);
             if env.vars.contains_key(&name.lexeme) {

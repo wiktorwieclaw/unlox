@@ -8,7 +8,8 @@ pub enum Stmt {
     Print(Expr),
     VarDecl { name: Token, init: Option<Expr> },
     Expression(Expr),
-    Block(Vec<Option<Stmt>>),
+    Block(Vec<Stmt>),
+    ParseErr,
 }
 
 #[derive(Debug, Clone)]

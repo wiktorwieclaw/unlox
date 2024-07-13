@@ -38,25 +38,9 @@ impl Interpreter {
         Self::default()
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Option<Stmt>>) -> Result<()> {
+    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<()> {
         for stmt in stmts {
-            let stmt = stmt.ok_or(Error::Parsing)?;
-            match stmt {
-                Stmt::Print(expr) => println!("{}", self.evaluate(expr)?),
-                Stmt::VarDecl { name, init } => {
-                    let init = match init {
-                        Some(init) => self.evaluate(init)?,
-                        None => Lit::Nil,
-                    };
-                    self.env_tree.env_mut(self.current_env).define(name, init);
-                }
-                Stmt::Expression(expr) => {
-                    self.evaluate(expr)?;
-                }
-                Stmt::Block(stmts) => {
-                    self.execute_block(stmts)?;
-                }
-            }
+            self.execute(stmt)?;
         }
         Ok(())
     }
@@ -75,17 +59,18 @@ impl Interpreter {
                 self.evaluate(expr)?;
             }
             Stmt::Block(stmts) => self.execute_block(stmts)?,
+            Stmt::ParseErr => return Err(Error::Parsing),
         }
         Ok(())
     }
 
-    fn execute_block(&mut self, stmts: Vec<Option<Stmt>>) -> Result<()> {
+    fn execute_block(&mut self, stmts: Vec<Stmt>) -> Result<()> {
         let previous_env = self.current_env;
         self.current_env = self.env_tree.create(previous_env);
 
         let result: Result<()> = (|| {
             for stmt in stmts {
-                self.execute(stmt.unwrap())?;
+                self.execute(stmt)?;
             }
             Ok(())
         })();

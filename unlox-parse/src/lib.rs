@@ -46,7 +46,7 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Option<Stmt>>> {
+pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Stmt>> {
     let mut stmts = vec![];
     while !stream.eof() {
         stmts.push(declaration(&mut stream));
@@ -54,7 +54,7 @@ pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Option<Stmt>>> {
     Ok(stmts)
 }
 
-fn declaration(stream: &mut impl TokenStream) -> Option<Stmt> {
+fn declaration(stream: &mut impl TokenStream) -> Stmt {
     let token = stream.peek();
     let result = match &token.kind {
         TokenKind::Var => {
@@ -63,10 +63,13 @@ fn declaration(stream: &mut impl TokenStream) -> Option<Stmt> {
         }
         _ => statement(stream),
     };
-    result.inspect_err(|e| eprintln!("{e}")).ok().or_else(|| {
-        synchronize(stream);
-        None
-    })
+    result
+        .inspect_err(|e| eprintln!("{e}"))
+        .ok()
+        .unwrap_or_else(|| {
+            synchronize(stream);
+            Stmt::ParseErr
+        })
 }
 
 fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
@@ -88,7 +91,7 @@ fn print_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let expr = expression(stream)?;
     consume(
         stream,
-        |t| *t == TokenKind::Semicolon,
+        eq(TokenKind::Semicolon),
         "Expected ';' after value.",
     )?;
     Ok(Stmt::Print(expr))
@@ -98,33 +101,25 @@ fn expression_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let expr = expression(stream)?;
     consume(
         stream,
-        |t| *t == TokenKind::Semicolon,
+        eq(TokenKind::Semicolon),
         "Expected ';' after expression.",
     )?;
     Ok(Stmt::Expression(expr))
 }
 
-fn block(stream: &mut impl TokenStream) -> Result<Vec<Option<Stmt>>> {
+fn block(stream: &mut impl TokenStream) -> Result<Vec<Stmt>> {
     let mut stmts = vec![];
 
     while stream.peek().kind != TokenKind::RightBrace && !stream.eof() {
         stmts.push(declaration(stream));
     }
 
-    consume(
-        stream,
-        |t| *t == TokenKind::RightBrace,
-        "Expect '}' after block.",
-    )?;
+    consume(stream, eq(TokenKind::RightBrace), "Expect '}' after block.")?;
     Ok(stmts)
 }
 
 fn var_decl(stream: &mut impl TokenStream) -> Result<Stmt> {
-    let name = consume(
-        stream,
-        |t| *t == TokenKind::Identifier,
-        "Expected variable name.",
-    )?;
+    let name = consume(stream, eq(TokenKind::Identifier), "Expected variable name.")?;
     let token = stream.peek();
     let init = if token.kind == TokenKind::Equal {
         stream.next();
@@ -134,7 +129,7 @@ fn var_decl(stream: &mut impl TokenStream) -> Result<Stmt> {
     };
     consume(
         stream,
-        |t| *t == TokenKind::Semicolon,
+        eq(TokenKind::Semicolon),
         "Expected ';' after variable declaration.",
     )?;
     Ok(Stmt::VarDecl { name, init })
@@ -147,7 +142,7 @@ fn expression(stream: &mut impl TokenStream) -> Result<Expr> {
 fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
     let expr = equality(stream)?;
 
-    if let Some(equals) = stream.try_match(|t| *t == TokenKind::Equal) {
+    if let Some(equals) = stream.try_match(eq(TokenKind::Equal)) {
         let value = assignment(stream)?;
         if let Expr::Variable(name) = expr {
             Ok(Expr::Assign {
@@ -267,6 +262,10 @@ fn consume(
         return Err(Error::new(token.clone(), message.to_string()));
     }
     Ok(stream.next())
+}
+
+fn eq(kind: TokenKind) -> impl FnOnce(&TokenKind) -> bool {
+    move |k| *k == kind
 }
 
 fn synchronize(stream: &mut impl TokenStream) {
