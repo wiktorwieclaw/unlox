@@ -1,6 +1,7 @@
-use std::{any::Any, collections::HashMap};
-
+use crate::env::Environment;
 use ast::{Expr, Lit, Stmt, Token, TokenKind};
+
+mod env;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -28,31 +29,6 @@ impl Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Default)]
-struct Environment {
-    values: HashMap<String, Box<dyn Any>>,
-}
-
-impl Environment {
-    fn define(&mut self, name: &Token, value: Box<dyn Any>) {
-        self.values.insert(name.lexeme.clone(), value);
-    }
-
-    fn get(&self, name: &Token) -> Result<&dyn Any> {
-        self.values
-            .get(&name.lexeme)
-            .map(|v| v.as_ref())
-            .ok_or_else(|| Error::UndefinedVariable { name: name.clone() })
-    }
-
-    fn get_mut(&mut self, name: &Token) -> Result<&mut dyn Any> {
-        self.values
-            .get_mut(&name.lexeme)
-            .map(|v| v.as_mut())
-            .ok_or_else(|| Error::UndefinedVariable { name: name.clone() })
-    }
-}
-
-#[derive(Default)]
 pub struct Interpreter {
     env: Environment,
 }
@@ -66,7 +42,13 @@ impl Interpreter {
         for stmt in stmts {
             match stmt {
                 Stmt::Print(expr) => println!("{}", self.evaluate(expr)?),
-                Stmt::VarDecl { .. } => todo!(),
+                Stmt::VarDecl { name, init } => {
+                    let init = match init {
+                        Some(init) => self.evaluate(init)?,
+                        None => Lit::Nil,
+                    };
+                    self.env.define(name, init);
+                }
                 Stmt::Expression(expr) => {
                     self.evaluate(expr)?;
                 }
@@ -75,7 +57,7 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn evaluate(&mut self, expr: Expr) -> Result<Lit> {
+    pub fn evaluate(&self, expr: Expr) -> Result<Lit> {
         let lit = match expr {
             Expr::Literal(value) => value,
             Expr::Grouping(expr) => self.evaluate(*expr)?,
@@ -125,7 +107,7 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
-            Expr::Variable(_) => todo!("variables are not implemented yet"),
+            Expr::Variable(name) => self.env.get(&name)?.clone(),
         };
         Ok(lit)
     }
