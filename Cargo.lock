@@ -112,7 +112,6 @@ dependencies = [
  "thiserror",
  "unlox-ast",
  "unlox-cactus",
- "unlox-tree",
 ]
 
 [[package]]
