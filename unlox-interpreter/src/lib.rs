@@ -1,4 +1,4 @@
-use env::{EnvIndex, EnvTree};
+use env::{Env, EnvIndex, EnvTree};
 use unlox_ast::{Expr, Lit, Stmt, Token, TokenKind};
 
 mod env;
@@ -26,9 +26,11 @@ pub struct Interpreter {
 
 impl Default for Interpreter {
     fn default() -> Self {
+        let mut env_tree = EnvTree::new();
+        let current_env = env_tree.add_global(Env::new());
         Self {
-            env_tree: EnvTree::default(),
-            current_env: EnvIndex::global(),
+            env_tree,
+            current_env,
         }
     }
 }
@@ -53,7 +55,9 @@ impl Interpreter {
                     Some(init) => self.evaluate(init)?,
                     None => Lit::Nil,
                 };
-                self.env_tree.env_mut(self.current_env).define(name, init);
+                self.env_tree
+                    .env_mut(self.current_env)
+                    .define_var(name, init);
             }
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
@@ -66,7 +70,7 @@ impl Interpreter {
 
     fn execute_block(&mut self, stmts: Vec<Stmt>) -> Result<()> {
         let previous_env = self.current_env;
-        self.current_env = self.env_tree.create(previous_env);
+        self.current_env = self.env_tree.add_nested(previous_env, Env::new());
 
         let result: Result<()> = (|| {
             for stmt in stmts {

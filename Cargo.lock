@@ -88,6 +88,7 @@ version = "0.1.0"
 dependencies = [
  "thiserror",
  "unlox-ast",
+ "unlox-tree",
 ]
 
 [[package]]
@@ -107,4 +108,8 @@ dependencies = [
 
 [[package]]
 name = "unlox-tokens"
+version = "0.1.0"
+
+[[package]]
+name = "unlox-tree"
 version = "0.1.0"

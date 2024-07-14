@@ -4,7 +4,7 @@ members = [
     "unlox-interpreter",
     "unlox-lexer",
     "unlox-parse",
-    "unlox-tokens",
+    "unlox-tokens", "unlox-tree",
 ]
 
 [package]
