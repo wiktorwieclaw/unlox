@@ -66,20 +66,29 @@ pub trait TokenStream {
 }
 
 pub trait TokenStreamExt {
-    fn try_match(&mut self, pred: impl FnOnce(&TokenKind) -> bool) -> Option<Token>;
+    fn match_next(&mut self, matcher: impl FnOnce(&TokenKind) -> bool) -> Result<Token, Token>;
     fn eof(&mut self) -> bool;
 }
 
 impl<T: TokenStream> TokenStreamExt for T {
-    fn try_match(&mut self, pred: impl FnOnce(&TokenKind) -> bool) -> Option<Token> {
-        if pred(&self.peek().kind) {
-            Some(self.next())
+    fn match_next(&mut self, matcher: impl FnOnce(&TokenKind) -> bool) -> Result<Token, Token> {
+        let token = self.peek();
+        if matcher(&token.kind) {
+            Ok(self.next())
         } else {
-            None
+            Err(token.clone())
         }
     }
 
     fn eof(&mut self) -> bool {
         self.peek().kind == TokenKind::Eof
+    }
+}
+
+pub mod matcher {
+    use super::*;
+
+    pub fn eq(kind: TokenKind) -> impl FnOnce(&TokenKind) -> bool {
+        move |k| *k == kind
     }
 }

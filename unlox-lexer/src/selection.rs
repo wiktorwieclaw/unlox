@@ -38,7 +38,7 @@ impl<'a> Selection<'a> {
     }
 
     /// Advances the end of the selection if the next character matches the `expected` character.
-    pub fn try_match(&mut self, expected: char) -> Option<char> {
+    pub fn match_advance(&mut self, expected: char) -> Option<char> {
         match self.peek() {
             Some(c) if c == expected => {
                 self.end += 1;

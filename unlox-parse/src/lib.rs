@@ -24,7 +24,7 @@
 use std::fmt::Display;
 
 use unlox_ast::{
-    tokens::{TokenStream, TokenStreamExt},
+    tokens::{matcher, TokenStream, TokenStreamExt},
     Expr, Lit, Stmt, Token, TokenKind,
 };
 
@@ -89,21 +89,17 @@ fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
 
 fn print_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let expr = expression(stream)?;
-    consume(
-        stream,
-        eq(TokenKind::Semicolon),
-        "Expected ';' after value.",
-    )?;
+    stream
+        .match_next(matcher::eq(TokenKind::Semicolon))
+        .map_err(|t| Error::new(t, "Expected ';' after value."))?;
     Ok(Stmt::Print(expr))
 }
 
 fn expression_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let expr = expression(stream)?;
-    consume(
-        stream,
-        eq(TokenKind::Semicolon),
-        "Expected ';' after expression.",
-    )?;
+    stream
+        .match_next(matcher::eq(TokenKind::Semicolon))
+        .map_err(|t| Error::new(t, "Expected ';' after expression."))?;
     Ok(Stmt::Expression(expr))
 }
 
@@ -114,12 +110,16 @@ fn block(stream: &mut impl TokenStream) -> Result<Vec<Stmt>> {
         stmts.push(declaration(stream));
     }
 
-    consume(stream, eq(TokenKind::RightBrace), "Expect '}' after block.")?;
+    stream
+        .match_next(matcher::eq(TokenKind::RightBrace))
+        .map_err(|t| Error::new(t, "Expect '}' after block."))?;
     Ok(stmts)
 }
 
 fn var_decl(stream: &mut impl TokenStream) -> Result<Stmt> {
-    let name = consume(stream, eq(TokenKind::Identifier), "Expected variable name.")?;
+    let name = stream
+        .match_next(matcher::eq(TokenKind::Identifier))
+        .map_err(|t| Error::new(t, "Expected variable name."))?;
     let token = stream.peek();
     let init = if token.kind == TokenKind::Equal {
         stream.next();
@@ -127,11 +127,9 @@ fn var_decl(stream: &mut impl TokenStream) -> Result<Stmt> {
     } else {
         None
     };
-    consume(
-        stream,
-        eq(TokenKind::Semicolon),
-        "Expected ';' after variable declaration.",
-    )?;
+    stream
+        .match_next(matcher::eq(TokenKind::Semicolon))
+        .map_err(|t| Error::new(t, "Expected ';' after variable declaration."))?;
     Ok(Stmt::VarDecl { name, init })
 }
 
@@ -142,7 +140,7 @@ fn expression(stream: &mut impl TokenStream) -> Result<Expr> {
 fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
     let expr = equality(stream)?;
 
-    if let Some(equals) = stream.try_match(eq(TokenKind::Equal)) {
+    if let Ok(equals) = stream.match_next(matcher::eq(TokenKind::Equal)) {
         let value = assignment(stream)?;
         if let Expr::Variable(name) = expr {
             Ok(Expr::Assign {
@@ -250,22 +248,6 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
     };
     stream.next();
     Ok(expr)
-}
-
-fn consume(
-    stream: &mut impl TokenStream,
-    pred: impl FnOnce(&TokenKind) -> bool,
-    message: impl ToString,
-) -> Result<Token> {
-    let token = stream.peek();
-    if !pred(&token.kind) {
-        return Err(Error::new(token.clone(), message.to_string()));
-    }
-    Ok(stream.next())
-}
-
-fn eq(kind: TokenKind) -> impl FnOnce(&TokenKind) -> bool {
-    move |k| *k == kind
 }
 
 fn synchronize(stream: &mut impl TokenStream) {
