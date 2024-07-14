@@ -20,12 +20,16 @@ impl EnvTree {
         Self::default()
     }
 
-    pub fn add_global(&mut self, env: Env) -> EnvIndex {
+    pub fn add_root(&mut self, env: Env) -> EnvIndex {
         self.0.add_root(env)
     }
 
-    pub fn add_nested(&mut self, parent: EnvIndex, env: Env) -> EnvIndex {
+    pub fn add_leaf(&mut self, parent: EnvIndex, env: Env) -> EnvIndex {
         self.0.add_leaf(parent, env)
+    }
+
+    pub fn remove_leaf(&mut self, idx: EnvIndex) -> Option<Env> {
+        self.0.remove_leaf(idx)
     }
 
     /// Assigns value to variable.

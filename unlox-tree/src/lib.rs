@@ -1,5 +1,4 @@
 /// Generic tree data structure implementation.
-#[derive(Default)]
 pub struct Tree<T> {
     nodes: Vec<Option<Node<T>>>,
 }
@@ -7,12 +6,25 @@ pub struct Tree<T> {
 pub struct Node<T> {
     value: T,
     parent: Option<Index>,
+    children: Vec<Index>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Index(usize);
 
+impl<T> Default for Tree<T> {
+    fn default() -> Self {
+        Self {
+            nodes: Default::default(),
+        }
+    }
+}
+
 impl<T> Tree<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn add_root(&mut self, value: T) -> Index {
         assert!(self.is_empty());
         self.add(Node::root(value))
@@ -20,7 +32,9 @@ impl<T> Tree<T> {
 
     pub fn add_leaf(&mut self, parent: Index, value: T) -> Index {
         assert!(self.get(parent).is_some());
-        self.add(Node::leaf(value, parent))
+        let idx = self.add(Node::leaf(value, parent));
+        self.get_mut(parent).unwrap().children.push(idx);
+        idx
     }
 
     fn add(&mut self, node: Node<T>) -> Index {
@@ -33,6 +47,20 @@ impl<T> Tree<T> {
             self.nodes.push(Some(node));
             Index(idx)
         }
+    }
+
+    pub fn remove_leaf(&mut self, idx: Index) -> Option<T> {
+        assert!(
+            self.get(idx).map_or(true, |n| n.children.is_empty()),
+            "Node is not a leaf"
+        );
+        let node = self.nodes.get_mut(idx.0)?.take()?;
+        if let Some(parent) = node.parent {
+            let parent = self.get_mut(parent).unwrap();
+            let pos = parent.children.iter().position(|i| *i == idx).unwrap();
+            parent.children.remove(pos);
+        }
+        Some(node.value)
     }
 
     pub fn get(&self, idx: Index) -> Option<&Node<T>> {
@@ -53,6 +81,7 @@ impl<T> Node<T> {
         Self {
             value,
             parent: None,
+            children: Vec::new(),
         }
     }
 
@@ -60,6 +89,7 @@ impl<T> Node<T> {
         Self {
             value,
             parent: Some(parent),
+            children: Vec::new(),
         }
     }
 

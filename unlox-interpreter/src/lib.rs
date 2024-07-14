@@ -27,7 +27,7 @@ pub struct Interpreter {
 impl Default for Interpreter {
     fn default() -> Self {
         let mut env_tree = EnvTree::new();
-        let current_env = env_tree.add_global(Env::new());
+        let current_env = env_tree.add_root(Env::new());
         Self {
             env_tree,
             current_env,
@@ -70,7 +70,7 @@ impl Interpreter {
 
     fn execute_block(&mut self, stmts: Vec<Stmt>) -> Result<()> {
         let previous_env = self.current_env;
-        self.current_env = self.env_tree.add_nested(previous_env, Env::new());
+        self.current_env = self.env_tree.add_leaf(previous_env, Env::new());
 
         let result: Result<()> = (|| {
             for stmt in stmts {
@@ -79,6 +79,7 @@ impl Interpreter {
             Ok(())
         })();
 
+        self.env_tree.remove_leaf(self.current_env);
         self.current_env = previous_env;
         result
     }
