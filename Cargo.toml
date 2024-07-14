@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "unlox-ast",
+    "unlox-ast", "unlox-cactus",
     "unlox-interpreter",
     "unlox-lexer",
     "unlox-parse",

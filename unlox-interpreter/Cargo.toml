@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 unlox-ast = { path = "../unlox-ast" }
 unlox-tree = { path = "../unlox-tree" }
+unlox-cactus = { path = "../unlox-cactus" }
 thiserror = "1.0.62"

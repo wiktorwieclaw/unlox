@@ -1,7 +1,6 @@
+use std::fmt::{self, Display};
 pub use tokens::{Token, TokenKind};
 pub use unlox_tokens as tokens;
-
-use std::fmt::{self, Display};
 
 #[derive(Debug, Clone)]
 pub enum Stmt {

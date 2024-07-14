@@ -1,4 +1,4 @@
-use env::{Env, EnvIndex, EnvTree};
+use env::{Env, EnvCactus};
 use unlox_ast::{Expr, Lit, Stmt, Token, TokenKind};
 
 mod env;
@@ -20,17 +20,13 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Interpreter {
-    env_tree: EnvTree,
-    current_env: EnvIndex,
+    env_tree: EnvCactus,
 }
 
 impl Default for Interpreter {
     fn default() -> Self {
-        let mut env_tree = EnvTree::new();
-        let current_env = env_tree.add_root(Env::new());
         Self {
-            env_tree,
-            current_env,
+            env_tree: EnvCactus::with_global(Env::new()),
         }
     }
 }
@@ -55,9 +51,7 @@ impl Interpreter {
                     Some(init) => self.evaluate(init)?,
                     None => Lit::Nil,
                 };
-                self.env_tree
-                    .env_mut(self.current_env)
-                    .define_var(name, init);
+                self.env_tree.current_env_mut().define_var(name, init);
             }
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
@@ -69,18 +63,14 @@ impl Interpreter {
     }
 
     fn execute_block(&mut self, stmts: Vec<Stmt>) -> Result<()> {
-        let previous_env = self.current_env;
-        self.current_env = self.env_tree.add_leaf(previous_env, Env::new());
-
-        let result: Result<()> = (|| {
+        self.env_tree.push(Env::new());
+        let result = (|| {
             for stmt in stmts {
                 self.execute(stmt)?;
             }
             Ok(())
         })();
-
-        self.env_tree.remove_leaf(self.current_env);
-        self.current_env = previous_env;
+        self.env_tree.pop();
         result
     }
 
@@ -134,12 +124,10 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
-            Expr::Variable(name) => self.env_tree.var(self.current_env, &name)?.clone(),
+            Expr::Variable(name) => self.env_tree.var(&name)?.clone(),
             Expr::Assign { name, value } => {
                 let value = self.evaluate(*value)?;
-                self.env_tree
-                    .assign(self.current_env, &name, value)?
-                    .clone()
+                self.env_tree.assign_var(&name, value)?.clone()
             }
         };
         Ok(lit)
