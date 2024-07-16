@@ -5,8 +5,8 @@ pub struct Tree<T> {
     nodes: Slab<Node<T>>,
 }
 
-pub struct Node<T> {
-    value: T,
+struct Node<T> {
+    data: T,
     parent: Option<Index>,
     first_child: Option<Index>,
     last_child: Option<Index>,
@@ -30,10 +30,14 @@ impl<T> Tree<T> {
         Self::default()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
     pub fn add_root(&mut self, value: T) -> Index {
         assert!(self.is_empty());
         Index(self.nodes.insert(Node {
-            value,
+            data: value,
             parent: None,
             first_child: None,
             last_child: None,
@@ -43,11 +47,11 @@ impl<T> Tree<T> {
     }
 
     pub fn add_leaf(&mut self, parent: Index, value: T) -> Index {
-        let parent_node = &self[parent];
+        let parent_node = &self.nodes[parent.0];
         let prev_sibling = parent_node.last_child;
 
         let idx = Index(self.nodes.insert(Node {
-            value,
+            data: value,
             parent: Some(parent),
             first_child: None,
             last_child: None,
@@ -55,23 +59,25 @@ impl<T> Tree<T> {
             prev_sibling,
         }));
 
-        let parent_node = &mut self[parent];
+        let parent_node = &mut self.nodes[parent.0];
         parent_node.first_child.get_or_insert(idx);
         parent_node.last_child = Some(idx);
         if let Some(prev_sibling) = prev_sibling {
-            self[prev_sibling].next_sibling = Some(idx);
+            self.nodes[prev_sibling.0].next_sibling = Some(idx);
         }
         idx
     }
 
     pub fn remove_leaf(&mut self, idx: Index) -> Option<T> {
         assert!(
-            self.get(idx).map_or(true, |n| n.first_child.is_none()),
+            self.nodes
+                .get(idx.0)
+                .map_or(true, |n| n.first_child.is_none()),
             "Node is not a leaf"
         );
         let node = self.nodes.try_remove(idx.as_usize())?;
         if let Some(parent) = node.parent {
-            let parent = &mut self[parent];
+            let parent = &mut self.nodes[parent.0];
 
             if parent.first_child.is_some_and(|i| i == idx) {
                 parent.first_child = node.next_sibling;
@@ -81,53 +87,25 @@ impl<T> Tree<T> {
             }
 
             if let Some(prev_sibling) = node.prev_sibling {
-                self[prev_sibling].next_sibling = node.next_sibling;
+                self.nodes[prev_sibling.0].next_sibling = node.next_sibling;
             }
             if let Some(next_sibling) = node.next_sibling {
-                self[next_sibling].prev_sibling = node.prev_sibling;
+                self.nodes[next_sibling.0].prev_sibling = node.prev_sibling;
             }
         }
-        Some(node.value)
+        Some(node.data)
     }
 
-    pub fn get(&self, idx: Index) -> Option<&Node<T>> {
-        self.nodes.get(idx.0)
+    pub fn parent(&self, idx: Index) -> Option<Index> {
+        self.nodes[idx.0].parent
     }
 
-    pub fn get_mut(&mut self, idx: Index) -> Option<&mut Node<T>> {
-        self.nodes.get_mut(idx.0)
+    pub fn node_data(&self, idx: Index) -> Option<&T> {
+        self.nodes.get(idx.0).map(|n| &n.data)
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-}
-
-impl<T> std::ops::Index<Index> for Tree<T> {
-    type Output = Node<T>;
-
-    fn index(&self, index: Index) -> &Self::Output {
-        self.get(index).unwrap()
-    }
-}
-
-impl<T> std::ops::IndexMut<Index> for Tree<T> {
-    fn index_mut(&mut self, index: Index) -> &mut Self::Output {
-        self.get_mut(index).unwrap()
-    }
-}
-
-impl<T> Node<T> {
-    pub fn get(&self) -> &T {
-        &self.value
-    }
-
-    pub fn get_mut(&mut self) -> &mut T {
-        &mut self.value
-    }
-
-    pub fn parent(&self) -> Option<Index> {
-        self.parent
+    pub fn node_data_mut(&mut self, idx: Index) -> Option<&mut T> {
+        self.nodes.get_mut(idx.0).map(|n| &mut n.data)
     }
 }
 
