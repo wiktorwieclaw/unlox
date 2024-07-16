@@ -36,9 +36,9 @@ impl EnvCactus {
 
     pub fn current_env_mut(&mut self) -> &mut Env {
         self.0
-            .current_node_mut()
-            .map(|node| node.data_mut())
-            .unwrap()
+            .current()
+            .and_then(|idx| self.0.node_data_mut(idx))
+            .expect("Should always have at least global env")
     }
 
     /// Assigns value to variable.
@@ -50,15 +50,16 @@ impl EnvCactus {
 
     /// Returns a reference to the value of a variable from the current environment.
     pub fn var(&self, name: &Token) -> Result<&Lit> {
-        let mut env_node = self.0.node(self.0.current().unwrap()).unwrap();
+        let mut env_idx = self.0.current().unwrap();
 
         loop {
-            if let Some(data) = env_node.data().vars.get(&name.lexeme) {
-                break Ok(data);
+            let env = self.0.node_data(env_idx).unwrap();
+            if let Some(val) = env.vars.get(&name.lexeme) {
+                break Ok(val);
             }
 
-            if let Some(parent) = env_node.parent() {
-                env_node = self.0.node(parent).unwrap();
+            if let Some(parent) = self.0.parent(env_idx) {
+                env_idx = parent;
             } else {
                 break Err(Error::UndefinedVariable { name: name.clone() });
             }
@@ -73,12 +74,12 @@ impl EnvCactus {
             // Current borrow checker implementation doesn't allow mutable borrows of a variable
             // in a loop if the function also returns a reference to the variable or it's part.
             // As a safe workaround, use non-mutable borrow in a loop and then reborrow it mutably.
-            let env_node = self.0.node(env_idx).unwrap();
-            if env_node.data().vars.contains_key(&name.lexeme) {
+            let env = self.0.node_data(env_idx).unwrap();
+            if env.vars.contains_key(&name.lexeme) {
                 break;
             }
 
-            if let Some(parent_idx) = env_node.parent() {
+            if let Some(parent_idx) = self.0.parent(env_idx) {
                 env_idx = parent_idx;
             } else {
                 return Err(Error::UndefinedVariable { name: name.clone() });

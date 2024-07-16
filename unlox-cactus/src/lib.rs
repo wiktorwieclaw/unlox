@@ -1,16 +1,20 @@
 use slab::Slab;
 
 /// Generic "Cactus stack" data structure, also known as "Parent pointer tree".
+#[derive(Debug, Clone)]
 pub struct Cactus<T> {
     nodes: Slab<Node<T>>,
     current: Option<Index>,
 }
 
-pub struct Node<T> {
+// Ensure `Node` remains private to protect tree's invariants.
+#[derive(Debug, Clone)]
+struct Node<T> {
     data: T,
     parent: Option<Index>,
 }
 
+/// Node index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Index(usize);
 
@@ -36,6 +40,11 @@ impl<T> Cactus<T> {
         self.nodes.is_empty()
     }
 
+    pub fn contains(&self, idx: Index) -> bool {
+        self.nodes.contains(idx.0)
+    }
+
+    /// Pushes node on top of the active stack frame.
     pub fn push(&mut self, value: T) -> Index {
         let idx = Index(self.nodes.insert(Node {
             data: value,
@@ -45,50 +54,33 @@ impl<T> Cactus<T> {
         idx
     }
 
+    /// Pops node out of the active stack frame.
     pub fn pop(&mut self) -> Option<T> {
         let node = self.nodes.try_remove(self.current?.as_usize())?;
         self.current = node.parent;
         Some(node.data)
     }
 
+    /// Returns the index of the top node of the active stack frame.
     pub fn current(&self) -> Option<Index> {
         self.current
     }
 
-    pub fn current_node(&self) -> Option<&Node<T>> {
-        self.node(self.current?)
+    /// Returns index of the parent's node.
+    ///
+    /// # Panics if node doesn't exist
+    pub fn parent(&self, idx: Index) -> Option<Index> {
+        self.nodes[idx.as_usize()].parent
     }
 
-    pub fn current_node_mut(&mut self) -> Option<&mut Node<T>> {
-        self.nodes.get_mut(self.current?.as_usize())
-    }
-
-    pub fn node(&self, idx: Index) -> Option<&Node<T>> {
-        self.nodes.get(idx.as_usize())
-    }
-
+    /// Returns a reference to node's data by given `idx`.
     pub fn node_data(&self, idx: Index) -> Option<&T> {
-        self.node(idx).map(|node| &node.data)
+        self.nodes.get(idx.as_usize()).map(|n| &n.data)
     }
 
+    /// Returns a mutable reference to node's data by given `idx`.
     pub fn node_data_mut(&mut self, idx: Index) -> Option<&mut T> {
-        self.nodes
-            .get_mut(idx.as_usize())
-            .map(|node| &mut node.data)
-    }
-}
-
-impl<T> Node<T> {
-    pub fn parent(&self) -> Option<Index> {
-        self.parent
-    }
-
-    pub fn data(&self) -> &T {
-        &self.data
-    }
-
-    pub fn data_mut(&mut self) -> &mut T {
-        &mut self.data
+        self.nodes.get_mut(idx.as_usize()).map(|n| &mut n.data)
     }
 }
 
