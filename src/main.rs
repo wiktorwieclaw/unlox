@@ -67,7 +67,7 @@ fn run(code: &str, interpreter: &mut Interpreter) {
         }
     };
 
-    match interpreter.interpret(ast) {
+    match interpreter.interpret(&ast) {
         Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
         Err(e) => eprintln!("{e}"),
     }

@@ -4,8 +4,16 @@ pub use unlox_tokens as tokens;
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    If {
+        cond: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
     Print(Expr),
-    VarDecl { name: Token, init: Option<Expr> },
+    VarDecl {
+        name: Token,
+        init: Option<Expr>,
+    },
     Expression(Expr),
     Block(Vec<Stmt>),
     ParseErr,
@@ -19,6 +27,7 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assign { name: Token, value: Box<Expr> },
+    Logical(Token, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

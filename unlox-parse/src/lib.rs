@@ -4,15 +4,18 @@
 //!
 //! declaration    → var_decl | statement ;
 //!
-//! statement      → expr_stmt | print_stmt | block ;
+//! statement      → expr_stmt | if_stmt | print_stmt | block ;
 //!
+//! if_stmt        → "if" "(" epxression ")" statement ( "else" statement)? ;
 //! block          → "{" declaration* "}" ;
 //! expr_stmt      → expression ";" ;
 //! print_stmt     → "print" expression ";" ;
 //!
 //! var_decl       → "var" IDENTIFIER ( "=" expression )? ";" ;
-//! expression     → equality ;
-//! assignment     → IDENTIFIER "=" assignment | equality;
+//! expression     → assignment ;
+//! assignment     → IDENTIFIER "=" assignment | logic_or ;
+//! logic_or       → logic_and ( "or" logic_and )* ;
+//! logic_and      → equality ( "and" equality )* ;
 //! equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //! comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 //! term           → factor ( ( "-" | "+" ) factor )* ;
@@ -75,6 +78,10 @@ fn declaration(stream: &mut impl TokenStream) -> Stmt {
 fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let token = stream.peek();
     match &token.kind {
+        TokenKind::If => {
+            stream.next();
+            if_statement(stream)
+        }
         TokenKind::Print => {
             stream.next();
             print_statement(stream)
@@ -85,6 +92,27 @@ fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
         }
         _ => expression_statement(stream),
     }
+}
+
+fn if_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+    stream
+        .match_next(matcher::eq(TokenKind::LeftParen))
+        .map_err(|t| Error::new(t, "Expected '(' after 'if'."))?;
+    let cond = expression(stream)?;
+    stream
+        .match_next(matcher::eq(TokenKind::RightParen))
+        .map_err(|t| Error::new(t, "Expected ')' after if condition."))?;
+    let then_branch = statement(stream)?;
+    let else_branch = stream
+        .match_next(matcher::eq(TokenKind::Else))
+        .ok()
+        .map(|_| statement(stream))
+        .transpose()?;
+    Ok(Stmt::If {
+        cond,
+        then_branch: Box::new(then_branch),
+        else_branch: else_branch.map(Box::new),
+    })
 }
 
 fn print_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
@@ -138,7 +166,7 @@ fn expression(stream: &mut impl TokenStream) -> Result<Expr> {
 }
 
 fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
-    let expr = equality(stream)?;
+    let expr = or(stream)?;
 
     if let Ok(equals) = stream.match_next(matcher::eq(TokenKind::Equal)) {
         let value = assignment(stream)?;
@@ -153,6 +181,30 @@ fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
     } else {
         Ok(expr)
     }
+}
+
+fn or(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = and(stream)?;
+
+    while let TokenKind::Or = stream.peek().kind {
+        let operator = stream.next();
+        let right = and(stream)?;
+        expr = Expr::Logical(operator, Box::new(expr), Box::new(right));
+    }
+
+    Ok(expr)
+}
+
+fn and(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = equality(stream)?;
+
+    while let TokenKind::And = stream.peek().kind {
+        let operator = stream.next();
+        let right = equality(stream)?;
+        expr = Expr::Logical(operator, Box::new(expr), Box::new(right));
+    }
+
+    Ok(expr)
 }
 
 fn equality(stream: &mut impl TokenStream) -> Result<Expr> {

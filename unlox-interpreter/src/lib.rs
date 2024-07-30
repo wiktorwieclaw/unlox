@@ -36,22 +36,35 @@ impl Interpreter {
         Self::default()
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<()> {
+    pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
         for stmt in stmts {
             self.execute(stmt)?;
         }
         Ok(())
     }
 
-    fn execute(&mut self, stmt: Stmt) -> Result<()> {
+    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
+            Stmt::If {
+                cond,
+                then_branch,
+                else_branch,
+            } => {
+                if self.evaluate(cond)?.is_truthy() {
+                    self.execute(then_branch)?;
+                } else if let Some(else_branch) = else_branch {
+                    self.execute(else_branch)?;
+                }
+            }
             Stmt::Print(expr) => println!("{}", self.evaluate(expr)?),
             Stmt::VarDecl { name, init } => {
                 let init = match init {
                     Some(init) => self.evaluate(init)?,
                     None => Lit::Nil,
                 };
-                self.env_tree.current_env_mut().define_var(name, init);
+                self.env_tree
+                    .current_env_mut()
+                    .define_var(name.clone(), init);
             }
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
@@ -62,7 +75,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_block(&mut self, stmts: Vec<Stmt>) -> Result<()> {
+    fn execute_block(&mut self, stmts: &[Stmt]) -> Result<()> {
         self.env_tree.push(Env::new());
         let result = (|| {
             for stmt in stmts {
@@ -74,24 +87,26 @@ impl Interpreter {
         result
     }
 
-    fn evaluate(&mut self, expr: Expr) -> Result<Lit> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Lit> {
         let lit = match expr {
-            Expr::Literal(value) => value,
-            Expr::Grouping(expr) => self.evaluate(*expr)?,
+            Expr::Literal(value) => value.clone(),
+            Expr::Grouping(expr) => self.evaluate(expr)?,
             Expr::Unary(operator, right) => {
-                let right = self.evaluate(*right)?;
+                let right = self.evaluate(right)?;
                 match (&operator.kind, right) {
                     (TokenKind::Bang, right) => Lit::Bool(!right.is_truthy()),
                     (TokenKind::Minus, Lit::Number(n)) => Lit::Number(-n),
                     (TokenKind::Minus, _) => {
-                        return Err(Error::ExpectedNumber { operator });
+                        return Err(Error::ExpectedNumber {
+                            operator: operator.clone(),
+                        });
                     }
                     _ => unreachable!(),
                 }
             }
             Expr::Binary(operator, left, right) => {
-                let left = self.evaluate(*left)?;
-                let right = self.evaluate(*right)?;
+                let left = self.evaluate(left)?;
+                let right = self.evaluate(right)?;
 
                 match (&operator.kind, left, right) {
                     (TokenKind::Minus, Lit::Number(l), Lit::Number(r)) => Lit::Number(l - r),
@@ -106,7 +121,9 @@ impl Interpreter {
                     (TokenKind::BangEqual, l, r) => Lit::Bool(l != r),
                     (TokenKind::EqualEqual, l, r) => Lit::Bool(l == r),
                     (TokenKind::Plus, _, _) => {
-                        return Err(Error::ExpectedNumbersOrStrings { operator });
+                        return Err(Error::ExpectedNumbersOrStrings {
+                            operator: operator.clone(),
+                        });
                     }
                     (
                         TokenKind::Greater
@@ -119,15 +136,26 @@ impl Interpreter {
                         _,
                         _,
                     ) => {
-                        return Err(Error::ExpectedNumbers { operator });
+                        return Err(Error::ExpectedNumbers {
+                            operator: operator.clone(),
+                        });
                     }
                     _ => unreachable!(),
                 }
             }
-            Expr::Variable(name) => self.env_tree.var(&name)?.clone(),
+            Expr::Variable(name) => self.env_tree.var(name)?.clone(),
             Expr::Assign { name, value } => {
-                let value = self.evaluate(*value)?;
-                self.env_tree.assign_var(&name, value)?.clone()
+                let value = self.evaluate(value)?;
+                self.env_tree.assign_var(name, value)?.clone()
+            }
+            Expr::Logical(operator, left, right) => {
+                let left = self.evaluate(left)?;
+                match (&operator.kind, left.is_truthy()) {
+                    (TokenKind::Or, true) => left,
+                    (TokenKind::Or, false) => self.evaluate(right)?,
+                    (_, false) => left,
+                    _ => self.evaluate(right)?,
+                }
             }
         };
         Ok(lit)
