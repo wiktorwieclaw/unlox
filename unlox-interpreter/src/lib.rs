@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use env::{Env, EnvCactus};
 use unlox_ast::{Expr, Lit, Stmt, Token, TokenKind};
 
@@ -36,14 +38,14 @@ impl Interpreter {
         Self::default()
     }
 
-    pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
+    pub fn interpret(&mut self, stmts: &[Stmt], out: &mut impl Write) -> Result<()> {
         for stmt in stmts {
-            self.execute(stmt)?;
+            self.execute(stmt, out)?;
         }
         Ok(())
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<()> {
+    fn execute(&mut self, stmt: &Stmt, out: &mut impl Write) -> Result<()> {
         match stmt {
             Stmt::If {
                 cond,
@@ -51,12 +53,12 @@ impl Interpreter {
                 else_branch,
             } => {
                 if self.evaluate(cond)?.is_truthy() {
-                    self.execute(then_branch)?;
+                    self.execute(then_branch, out)?;
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(else_branch)?;
+                    self.execute(else_branch, out)?;
                 }
             }
-            Stmt::Print(expr) => println!("{}", self.evaluate(expr)?),
+            Stmt::Print(expr) => writeln!(out, "{}", self.evaluate(expr)?).unwrap(),
             Stmt::VarDecl { name, init } => {
                 let init = match init {
                     Some(init) => self.evaluate(init)?,
@@ -69,17 +71,17 @@ impl Interpreter {
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
             }
-            Stmt::Block(stmts) => self.execute_block(stmts)?,
+            Stmt::Block(stmts) => self.execute_block(stmts, out)?,
             Stmt::ParseErr => return Err(Error::Parsing),
         }
         Ok(())
     }
 
-    fn execute_block(&mut self, stmts: &[Stmt]) -> Result<()> {
+    fn execute_block(&mut self, stmts: &[Stmt], out: &mut impl Write) -> Result<()> {
         self.env_tree.push(Env::new());
         let result = (|| {
             for stmt in stmts {
-                self.execute(stmt)?;
+                self.execute(stmt, out)?;
             }
             Ok(())
         })();

@@ -22,3 +22,6 @@ unlox-parse = { path = "unlox-parse" }
 unlox-interpreter = { path = "unlox-interpreter" }
 unlox-tokens = { path = "unlox-tokens" }
 unlox-tree = { version = "0.1.0", path = "unlox-tree" }
+
+[dev-dependencies]
+thiserror = "1.0.63"
