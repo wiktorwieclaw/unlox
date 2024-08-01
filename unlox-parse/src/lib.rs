@@ -4,13 +4,14 @@
 //!
 //! declaration    → var_decl | statement ;
 //!
-//! statement      → expr_stmt | if_stmt | print_stmt | while_stmt | block ;
+//! statement      → expr_stmt | for_stmt | if_stmt | print_stmt | while_stmt | block ;
 //!
-//! while_stmt     → "while" "(" expression ")" statement ;
-//! if_stmt        → "if" "(" epxression ")" statement ( "else" statement)? ;
-//! block          → "{" declaration* "}" ;
 //! expr_stmt      → expression ";" ;
+//! for_stmt       → "for" "(" (var_decl | expr_stmt | ";" ) expression? ";" expression? ")" statement;
+//! if_stmt        → "if" "(" epxression ")" statement ( "else" statement)? ;
 //! print_stmt     → "print" expression ";" ;
+//! while_stmt     → "while" "(" expression ")" statement ;
+//! block          → "{" declaration* "}" ;
 //!
 //! var_decl       → "var" IDENTIFIER ( "=" expression )? ";" ;
 //! expression     → assignment ;
@@ -79,6 +80,10 @@ fn declaration(stream: &mut impl TokenStream) -> Stmt {
 fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
     let token = stream.peek();
     match &token.kind {
+        TokenKind::For => {
+            stream.next();
+            for_statement(stream)
+        }
         TokenKind::If => {
             stream.next();
             if_statement(stream)
@@ -97,6 +102,59 @@ fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
         }
         _ => expression_statement(stream),
     }
+}
+
+fn for_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+    stream
+        .match_next(matcher::eq(TokenKind::LeftParen))
+        .map_err(|t| Error::new(t, "Expected '(' after 'for'."))?;
+    let init = match stream.peek().kind {
+        TokenKind::Semicolon => {
+            stream.next();
+            None
+        }
+        TokenKind::Var => {
+            stream.next();
+            Some(var_decl(stream)?)
+        }
+        _ => Some(expression_statement(stream)?),
+    };
+
+    let cond = if stream.peek().kind != TokenKind::Semicolon {
+        Some(expression(stream)?)
+    } else {
+        None
+    };
+
+    stream
+        .match_next(matcher::eq(TokenKind::Semicolon))
+        .map_err(|t| Error::new(t, "Expected ';' after loop condition."))?;
+
+    let inc = if stream.peek().kind != TokenKind::RightParen {
+        Some(expression(stream)?)
+    } else {
+        None
+    };
+
+    stream
+        .match_next(matcher::eq(TokenKind::RightParen))
+        .map_err(|t| Error::new(t, "Expected ')' after for clauses."))?;
+
+    let mut body = statement(stream)?;
+    if let Some(inc) = inc {
+        body = Stmt::Block(vec![body, Stmt::Expression(inc)])
+    }
+    let cond = cond.unwrap_or(Expr::Literal(Lit::Bool(true)));
+    let while_stmt = Stmt::While {
+        cond,
+        body: Box::new(body),
+    };
+    let for_stmt = if let Some(init) = init {
+        Stmt::Block(vec![init, while_stmt])
+    } else {
+        while_stmt
+    };
+    Ok(for_stmt)
 }
 
 fn if_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
