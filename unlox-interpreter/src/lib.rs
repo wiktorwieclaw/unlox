@@ -58,6 +58,11 @@ impl Interpreter {
                     self.execute(else_branch, out)?;
                 }
             }
+            Stmt::While { cond, body } => {
+                while self.evaluate(cond)?.is_truthy() {
+                    self.execute(body, out)?;
+                }
+            }
             Stmt::Print(expr) => writeln!(out, "{}", self.evaluate(expr)?).unwrap(),
             Stmt::VarDecl { name, init } => {
                 let init = match init {

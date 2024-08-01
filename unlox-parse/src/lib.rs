@@ -4,8 +4,9 @@
 //!
 //! declaration    → var_decl | statement ;
 //!
-//! statement      → expr_stmt | if_stmt | print_stmt | block ;
+//! statement      → expr_stmt | if_stmt | print_stmt | while_stmt | block ;
 //!
+//! while_stmt     → "while" "(" expression ")" statement ;
 //! if_stmt        → "if" "(" epxression ")" statement ( "else" statement)? ;
 //! block          → "{" declaration* "}" ;
 //! expr_stmt      → expression ";" ;
@@ -86,6 +87,10 @@ fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
             stream.next();
             print_statement(stream)
         }
+        TokenKind::While => {
+            stream.next();
+            while_statement(stream)
+        }
         TokenKind::LeftBrace => {
             stream.next();
             Ok(Stmt::Block(block(stream)?))
@@ -112,6 +117,21 @@ fn if_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
         cond,
         then_branch: Box::new(then_branch),
         else_branch: else_branch.map(Box::new),
+    })
+}
+
+fn while_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+    stream
+        .match_next(matcher::eq(TokenKind::LeftParen))
+        .map_err(|t| Error::new(t, "Expected '(' after 'while'."))?;
+    let cond = expression(stream)?;
+    stream
+        .match_next(matcher::eq(TokenKind::RightParen))
+        .map_err(|t| Error::new(t, "Expected ')' after condition."))?;
+    let body = statement(stream)?;
+    Ok(Stmt::While {
+        cond,
+        body: Box::new(body),
     })
 }
 

@@ -60,3 +60,15 @@ fn if_statements() {
     "#;
     assert_eq!(interpret(code).unwrap(), "true\ntrue\nfalse\nfalse\n");
 }
+
+#[test]
+fn while_statement() {
+    let code = r#"
+        var n = 3;
+        while (n > 0) {
+            print n;
+            n = n - 1;
+        }
+    "#;
+    assert_eq!(interpret(code).unwrap(), "3\n2\n1\n");
+}

@@ -9,6 +9,10 @@ pub enum Stmt {
         then_branch: Box<Stmt>,
         else_branch: Option<Box<Stmt>>,
     },
+    While {
+        cond: Expr,
+        body: Box<Stmt>,
+    },
     Print(Expr),
     VarDecl {
         name: Token,
