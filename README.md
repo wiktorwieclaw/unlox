@@ -2,18 +2,26 @@
 An interpreter for the Lox programming language written in Rust.
 
 ## Example
+Print 50th element in the Fibonacci sequence:
 ```
+var start = clock();
+var n = 50;
+
 var a = 0;
-{
-    var a = 5;
-    a = a + 1;
-    print a;
+var b = 1;
+
+for (var i = 0; a < n; i = i + 1) {
+    var temp = a;
+    a = b;
+    b = temp + b;
 }
-a = a + 1;
+
+var end = clock();
 print a;
+print end - start;
 ```
 Output:
 ```
-6
-1
+12586269025
+0.00004029273986816406;
 ```
