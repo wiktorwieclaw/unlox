@@ -1,9 +1,10 @@
-use std::io::Write;
-
 use env::{Env, EnvCactus};
-use unlox_ast::{Expr, Lit, Stmt, Token, TokenKind};
+use std::io::Write;
+use unlox_ast::{Expr, Stmt, Token, TokenKind};
+use val::{Callable, Val};
 
 mod env;
+mod val;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -15,6 +16,14 @@ pub enum Error {
     ExpectedNumbersOrStrings { operator: Token },
     #[error("[Line {}]: Undefined variable {}.", name.line, name.lexeme)]
     UndefinedVariable { name: Token },
+    #[error("[Line] {}: Can only call functions and classes.", paren.line)]
+    BadCall { paren: Token },
+    #[error("[Line] {}: Expected {expected} arguments but got {got}.", paren.line)]
+    WrongNumberOfArgs {
+        paren: Token,
+        expected: usize,
+        got: usize,
+    },
     #[error("Parsing error.")]
     Parsing,
 }
@@ -27,8 +36,10 @@ pub struct Interpreter {
 
 impl Default for Interpreter {
     fn default() -> Self {
+        let mut global = Env::new();
+        global.define_var("clock".to_owned(), Val::Callable(Callable::Clock));
         Self {
-            env_tree: EnvCactus::with_global(Env::new()),
+            env_tree: EnvCactus::with_global(global),
         }
     }
 }
@@ -67,11 +78,11 @@ impl Interpreter {
             Stmt::VarDecl { name, init } => {
                 let init = match init {
                     Some(init) => self.evaluate(init)?,
-                    None => Lit::Nil,
+                    None => Val::Nil,
                 };
                 self.env_tree
                     .current_env_mut()
-                    .define_var(name.clone(), init);
+                    .define_var(name.lexeme.clone(), init);
             }
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
@@ -94,15 +105,15 @@ impl Interpreter {
         result
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Lit> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Val> {
         let lit = match expr {
-            Expr::Literal(value) => value.clone(),
+            Expr::Literal(value) => value.clone().into(),
             Expr::Grouping(expr) => self.evaluate(expr)?,
             Expr::Unary(operator, right) => {
                 let right = self.evaluate(right)?;
                 match (&operator.kind, right) {
-                    (TokenKind::Bang, right) => Lit::Bool(!right.is_truthy()),
-                    (TokenKind::Minus, Lit::Number(n)) => Lit::Number(-n),
+                    (TokenKind::Bang, right) => Val::Bool(!right.is_truthy()),
+                    (TokenKind::Minus, Val::Number(n)) => Val::Number(-n),
                     (TokenKind::Minus, _) => {
                         return Err(Error::ExpectedNumber {
                             operator: operator.clone(),
@@ -116,17 +127,17 @@ impl Interpreter {
                 let right = self.evaluate(right)?;
 
                 match (&operator.kind, left, right) {
-                    (TokenKind::Minus, Lit::Number(l), Lit::Number(r)) => Lit::Number(l - r),
-                    (TokenKind::Slash, Lit::Number(l), Lit::Number(r)) => Lit::Number(l / r),
-                    (TokenKind::Star, Lit::Number(l), Lit::Number(r)) => Lit::Number(l * r),
-                    (TokenKind::Plus, Lit::Number(l), Lit::Number(r)) => Lit::Number(l + r),
-                    (TokenKind::Plus, Lit::String(l), Lit::String(r)) => Lit::String(l + &r),
-                    (TokenKind::Greater, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l > r),
-                    (TokenKind::GreaterEqual, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l >= r),
-                    (TokenKind::Less, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l < r),
-                    (TokenKind::LessEqual, Lit::Number(l), Lit::Number(r)) => Lit::Bool(l <= r),
-                    (TokenKind::BangEqual, l, r) => Lit::Bool(l != r),
-                    (TokenKind::EqualEqual, l, r) => Lit::Bool(l == r),
+                    (TokenKind::Minus, Val::Number(l), Val::Number(r)) => Val::Number(l - r),
+                    (TokenKind::Slash, Val::Number(l), Val::Number(r)) => Val::Number(l / r),
+                    (TokenKind::Star, Val::Number(l), Val::Number(r)) => Val::Number(l * r),
+                    (TokenKind::Plus, Val::Number(l), Val::Number(r)) => Val::Number(l + r),
+                    (TokenKind::Plus, Val::String(l), Val::String(r)) => Val::String(l + &r),
+                    (TokenKind::Greater, Val::Number(l), Val::Number(r)) => Val::Bool(l > r),
+                    (TokenKind::GreaterEqual, Val::Number(l), Val::Number(r)) => Val::Bool(l >= r),
+                    (TokenKind::Less, Val::Number(l), Val::Number(r)) => Val::Bool(l < r),
+                    (TokenKind::LessEqual, Val::Number(l), Val::Number(r)) => Val::Bool(l <= r),
+                    (TokenKind::BangEqual, l, r) => Val::Bool(l != r),
+                    (TokenKind::EqualEqual, l, r) => Val::Bool(l == r),
                     (TokenKind::Plus, _, _) => {
                         return Err(Error::ExpectedNumbersOrStrings {
                             operator: operator.clone(),
@@ -163,6 +174,28 @@ impl Interpreter {
                     (_, false) => left,
                     _ => self.evaluate(right)?,
                 }
+            }
+            Expr::Call {
+                callee,
+                paren,
+                args,
+            } => {
+                let callee = self.evaluate(callee)?;
+                let Val::Callable(callable) = callee else {
+                    return Err(Error::BadCall {
+                        paren: paren.clone(),
+                    });
+                };
+                let args: Result<Vec<_>> = args.iter().map(|arg| self.evaluate(arg)).collect();
+                let args = args?;
+                if args.len() != callable.arity() {
+                    return Err(Error::WrongNumberOfArgs {
+                        paren: paren.clone(),
+                        expected: callable.arity(),
+                        got: args.len(),
+                    });
+                }
+                callable.call(self, args)
             }
         };
         Ok(lit)

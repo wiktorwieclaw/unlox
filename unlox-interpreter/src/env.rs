@@ -1,12 +1,12 @@
-use crate::{Error, Result};
+use crate::{Error, Result, Val};
 use std::collections::HashMap;
-use unlox_ast::{Lit, Token};
+use unlox_ast::Token;
 
 pub struct EnvCactus(unlox_cactus::Cactus<Env>);
 
 #[derive(Default)]
 pub struct Env {
-    vars: HashMap<String, Lit>,
+    vars: HashMap<String, Val>,
 }
 
 pub type EnvIndex = unlox_cactus::Index;
@@ -42,14 +42,14 @@ impl EnvCactus {
     }
 
     /// Assigns value to variable.
-    pub fn assign_var(&mut self, name: &Token, value: Lit) -> Result<&Lit> {
+    pub fn assign_var(&mut self, name: &Token, value: Val) -> Result<&Val> {
         let slot = self.var_mut(name)?;
         *slot = value;
         Ok(slot)
     }
 
     /// Returns a reference to the value of a variable from the current environment.
-    pub fn var(&self, name: &Token) -> Result<&Lit> {
+    pub fn var(&self, name: &Token) -> Result<&Val> {
         let mut env_idx = self.0.current().unwrap();
 
         loop {
@@ -66,8 +66,8 @@ impl EnvCactus {
         }
     }
 
-    /// Returns a mutable reference to the value of a variable from the current environment.
-    pub fn var_mut(&mut self, name: &Token) -> Result<&mut Lit> {
+    /// Returns a mutable reference to the value of a Val from the current environment.
+    pub fn var_mut(&mut self, name: &Token) -> Result<&mut Val> {
         let mut env_idx = self.0.current().unwrap();
 
         loop {
@@ -105,7 +105,7 @@ impl Env {
     }
 
     /// Defines new variable.
-    pub fn define_var(&mut self, name: Token, value: Lit) {
-        self.vars.insert(name.lexeme, value);
+    pub fn define_var(&mut self, name: String, value: Val) {
+        self.vars.insert(name, value);
     }
 }

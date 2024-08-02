@@ -30,8 +30,16 @@ pub enum Expr {
     Literal(Lit),
     Unary(Token, Box<Expr>),
     Variable(Token),
-    Assign { name: Token, value: Box<Expr> },
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    },
     Logical(Token, Box<Expr>, Box<Expr>),
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        args: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]

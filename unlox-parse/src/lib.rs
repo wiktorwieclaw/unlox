@@ -23,6 +23,8 @@
 //! term           → factor ( ( "-" | "+" ) factor )* ;
 //! factor         → unary ( ( "/" | "*" ) unary )* ;
 //! unary          → ( "!" | "-" ) unary | primary ;
+//! call           → primary ( "(" arguments? ")" )*  ;
+//! arguments      → expression ( "," expression )* ;
 //! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
 //! ```
 
@@ -332,8 +334,41 @@ fn unary(stream: &mut impl TokenStream) -> Result<Expr> {
             let expr = Expr::Unary(token, Box::new(unary(stream)?));
             Ok(expr)
         }
-        _ => primary(stream),
+        _ => call(stream),
     }
+}
+
+fn call(stream: &mut impl TokenStream) -> Result<Expr> {
+    let mut expr = primary(stream)?;
+    while let TokenKind::LeftParen = stream.peek().kind {
+        stream.next();
+
+        let mut args = vec![];
+        if stream.peek().kind != TokenKind::RightParen {
+            loop {
+                if args.len() >= 255 {
+                    return Err(Error::new(
+                        stream.next(),
+                        "Can't have more than 255 arguments",
+                    ));
+                }
+                args.push(expression(stream)?);
+                if stream.match_next(matcher::eq(TokenKind::Comma)).is_err() {
+                    break;
+                }
+            }
+        }
+
+        let paren = stream
+            .match_next(matcher::eq(TokenKind::RightParen))
+            .map_err(|t| Error::new(t, "Expect ')' after arguments."))?;
+        expr = Expr::Call {
+            callee: Box::new(expr),
+            paren,
+            args,
+        };
+    }
+    Ok(expr)
 }
 
 fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
