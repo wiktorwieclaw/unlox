@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 /// Advancing text selection.
 pub struct Selection<'a> {
     source: &'a str,
@@ -61,6 +63,11 @@ impl<'a> Selection<'a> {
     /// Clears the selection by moving it's beginning to it's end.
     pub fn clear(&mut self) {
         self.start = self.end
+    }
+
+
+    pub fn range(&self) -> Range<usize> {
+        self.start..self.end
     }
 
     /// Returns a reference to the selected string.

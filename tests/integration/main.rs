@@ -14,7 +14,7 @@ fn interpret(code: &str) -> Result<String, Error> {
     let ast = unlox_parse::parse(lexer).map_err(Error::Parse)?;
     let mut interpreter = Interpreter::new();
     interpreter
-        .interpret(&ast, &mut out)
+        .interpret(code, &ast, &mut out)
         .map_err(Error::Interpret)?;
     Ok(String::from_utf8(out).unwrap())
 }

@@ -67,7 +67,7 @@ fn run(code: &str, interpreter: &mut Interpreter) {
         }
     };
 
-    match interpreter.interpret(&ast, &mut std::io::stdout()) {
+    match interpreter.interpret(code, &ast, &mut std::io::stdout()) {
         Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
         Err(e) => eprintln!("{e}"),
     }

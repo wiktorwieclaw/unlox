@@ -84,7 +84,7 @@ impl LexerInner<'_> {
     fn token(&mut self, kind: TokenKind) -> Token {
         Token {
             kind,
-            lexeme: self.selection.str().into(),
+            lexeme: self.selection.range(),
             line: self.selection.line(),
         }
     }
@@ -92,18 +92,17 @@ impl LexerInner<'_> {
     fn string_token(&mut self) -> Token {
         self.selection.advance_while(|c| c != '"');
         let is_terminated = !self.selection.eof();
-        let str = if is_terminated {
+        let kind = if is_terminated {
             self.selection.advance();
             let str = self.selection.str();
-            str[1..str.len() - 1].to_owned()
+            let str = &str[1..str.len() - 1];
+            TokenKind::String(str.to_owned())
         } else {
             let str = self.selection.str();
-            str[1..].to_owned()
+            let str = &str[1..];
+            TokenKind::StringUnterminated(str.to_owned())
         };
-        self.token(TokenKind::String {
-            value: str,
-            is_terminated,
-        })
+        self.token(kind)
     }
 
     fn number_token(&mut self) -> Token {
@@ -156,7 +155,7 @@ mod test {
             lexer.next(),
             Token {
                 kind: TokenKind::LeftParen,
-                lexeme: "(".into(),
+                lexeme: 0..1,
                 line: 1
             }
         );
@@ -164,7 +163,7 @@ mod test {
             lexer.next(),
             Token {
                 kind: TokenKind::RightParen,
-                lexeme: ")".into(),
+                lexeme: 1..2,
                 line: 1
             }
         )
@@ -177,7 +176,7 @@ mod test {
             lexer.next(),
             Token {
                 kind: TokenKind::Number(12.345),
-                lexeme: "12.345".into(),
+                lexeme: 0..6,
                 line: 1
             }
         )
@@ -189,11 +188,8 @@ mod test {
         assert_eq!(
             lexer.next(),
             Token {
-                kind: TokenKind::String {
-                    value: "string".into(),
-                    is_terminated: true
-                },
-                lexeme: r#""string""#.into(),
+                kind: TokenKind::String("string".into()),
+                lexeme: 0..8,
                 line: 1
             }
         )

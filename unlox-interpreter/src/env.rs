@@ -1,6 +1,5 @@
-use crate::{Error, Result, Val};
+use crate::Val;
 use std::collections::HashMap;
-use unlox_ast::Token;
 
 pub struct EnvCactus(unlox_cactus::Cactus<Env>);
 
@@ -42,32 +41,32 @@ impl EnvCactus {
     }
 
     /// Assigns value to variable.
-    pub fn assign_var(&mut self, name: &Token, value: Val) -> Result<&Val> {
+    pub fn assign_var(&mut self, name: &str, value: Val) -> Option<&Val> {
         let slot = self.var_mut(name)?;
         *slot = value;
-        Ok(slot)
+        Some(slot)
     }
 
     /// Returns a reference to the value of a variable from the current environment.
-    pub fn var(&self, name: &Token) -> Result<&Val> {
+    pub fn var(&self, name: &str) -> Option<&Val> {
         let mut env_idx = self.0.current().unwrap();
 
         loop {
             let env = self.0.node_data(env_idx).unwrap();
-            if let Some(val) = env.vars.get(&name.lexeme) {
-                break Ok(val);
+            if let Some(val) = env.vars.get(name) {
+                break Some(val);
             }
 
             if let Some(parent) = self.0.parent(env_idx) {
                 env_idx = parent;
             } else {
-                break Err(Error::UndefinedVariable { name: name.clone() });
+                break None;
             }
         }
     }
 
     /// Returns a mutable reference to the value of a Val from the current environment.
-    pub fn var_mut(&mut self, name: &Token) -> Result<&mut Val> {
+    pub fn var_mut(&mut self, name: &str) -> Option<&mut Val> {
         let mut env_idx = self.0.current().unwrap();
 
         loop {
@@ -75,14 +74,14 @@ impl EnvCactus {
             // in a loop if the function also returns a reference to the variable or it's part.
             // As a safe workaround, use non-mutable borrow in a loop and then reborrow it mutably.
             let env = self.0.node_data(env_idx).unwrap();
-            if env.vars.contains_key(&name.lexeme) {
+            if env.vars.contains_key(name) {
                 break;
             }
 
             if let Some(parent_idx) = self.0.parent(env_idx) {
                 env_idx = parent_idx;
             } else {
-                return Err(Error::UndefinedVariable { name: name.clone() });
+                return None;
             }
         }
 
@@ -91,10 +90,10 @@ impl EnvCactus {
             .node_data_mut(env_idx)
             .unwrap()
             .vars
-            .get_mut(&name.lexeme)
+            .get_mut(name)
             .expect("Presence of variable should already be asserted");
 
-        Ok(var)
+        Some(var)
     }
 }
 

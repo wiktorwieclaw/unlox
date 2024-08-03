@@ -38,18 +38,18 @@ impl From<Lit> for Val {
 impl std::fmt::Display for Val {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Val::Number(v) => writeln!(f, "{}", v),
-            Val::String(v) => writeln!(f, "{}", v),
-            Val::Bool(v) => writeln!(f, "{}", v),
-            Val::Nil => writeln!(f, "nil"),
-            Val::Callable(v) => writeln!(f, "{}", v),
+            Val::Number(v) => write!(f, "{}", v),
+            Val::String(v) => write!(f, "{}", v),
+            Val::Bool(v) => write!(f, "{}", v),
+            Val::Nil => write!(f, "nil"),
+            Val::Callable(v) => write!(f, "{}", v),
         }
     }
 }
 
 impl std::fmt::Display for Callable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "<native fn>")
+        write!(f, "<native fn>")
     }
 }
 

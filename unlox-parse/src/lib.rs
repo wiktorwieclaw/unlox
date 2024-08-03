@@ -252,7 +252,7 @@ fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
         let value = assignment(stream)?;
         if let Expr::Variable(name) = expr {
             Ok(Expr::Assign {
-                name,
+                var: name,
                 value: Box::new(value),
             })
         } else {
@@ -378,14 +378,8 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
         TokenKind::True => Expr::Literal(Lit::Bool(true)),
         TokenKind::Nil => Expr::Literal(Lit::Nil),
         TokenKind::Number(n) => Expr::Literal(Lit::Number(*n)),
-        TokenKind::String {
-            value,
-            is_terminated: true,
-        } => Expr::Literal(Lit::String(value.clone())),
-        TokenKind::String {
-            is_terminated: false,
-            ..
-        } => {
+        TokenKind::String(value)=> Expr::Literal(Lit::String(value.clone())),
+        TokenKind::StringUnterminated(_) => {
             return Err(Error::new(token.clone(), "Unterminated string."));
         }
         TokenKind::LeftParen => {

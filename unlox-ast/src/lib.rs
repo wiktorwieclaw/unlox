@@ -31,7 +31,7 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assign {
-        name: Token,
+        var: Token,
         value: Box<Expr>,
     },
     Logical(Token, Box<Expr>, Box<Expr>),

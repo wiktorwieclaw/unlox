@@ -1,7 +1,9 @@
+use std::ops::Range;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
-    pub lexeme: String,
+    pub lexeme: Range<usize>,
     pub line: u32,
 }
 
@@ -32,7 +34,8 @@ pub enum TokenKind {
 
     // literals
     Identifier,
-    String { value: String, is_terminated: bool },
+    String(String),
+    StringUnterminated(String),
     Number(f64),
 
     // keywords
