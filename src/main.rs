@@ -2,7 +2,7 @@ use std::{
     cell::Cell,
     cmp::Ordering,
     env, fs,
-    io::{self, BufRead, Write},
+    io::{self, BufRead, Stdout, Write},
     process,
 };
 use unlox_ast::Ast;
@@ -29,7 +29,7 @@ fn main() {
 
 fn run_file(path: &str) -> io::Result<()> {
     let code = fs::read_to_string(path)?;
-    let mut interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::new(std::io::stdout());
     run(&code, &mut interpreter);
     if HAD_ERROR.with(|e| e.get()) {
         process::exit(65);
@@ -43,7 +43,7 @@ fn run_file(path: &str) -> io::Result<()> {
 fn run_prompt() -> io::Result<()> {
     let stdout = io::stdin();
     let mut lines = stdout.lock().lines();
-    let mut interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::new(std::io::stdout());
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -58,7 +58,7 @@ fn run_prompt() -> io::Result<()> {
     Ok(())
 }
 
-fn run(code: &str, interpreter: &mut Interpreter) {
+fn run(code: &str, interpreter: &mut Interpreter<Stdout>) {
     let lexer = Lexer::new(code);
     let mut ast = Ast::new();
     let stmts = match unlox_parse::parse(lexer, &mut ast) {
@@ -69,7 +69,7 @@ fn run(code: &str, interpreter: &mut Interpreter) {
         }
     };
 
-    match interpreter.interpret(code, &ast, &stmts, &mut std::io::stdout()) {
+    match interpreter.interpret(code, &ast, &stmts) {
         Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
         Err(e) => eprintln!("{e}"),
     }

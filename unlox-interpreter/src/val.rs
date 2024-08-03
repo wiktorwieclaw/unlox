@@ -54,7 +54,7 @@ impl std::fmt::Display for Callable {
 }
 
 impl Callable {
-    pub fn call(&self, _interpreter: &Interpreter, _args: Vec<Val>) -> Val {
+    pub fn call<Out>(&self, _interpreter: &Interpreter<Out>, _args: Vec<Val>) -> Val {
         match self {
             Callable::Clock => Val::Number(
                 SystemTime::now()

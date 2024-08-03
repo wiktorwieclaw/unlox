@@ -30,45 +30,34 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub struct Interpreter {
+pub struct Interpreter<Out> {
     env_tree: EnvCactus,
+    out: Out,
 }
 
-impl Default for Interpreter {
-    fn default() -> Self {
+impl<Out> Interpreter<Out> {
+    pub fn new(out: Out) -> Self {
         let mut global = Env::new();
         global.define_var("clock".to_owned(), Val::Callable(Callable::Clock));
         Self {
             env_tree: EnvCactus::with_global(global),
+            out,
         }
     }
 }
 
-impl Interpreter {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn interpret(
-        &mut self,
-        source: &str,
-        ast: &Ast,
-        stmts: &[StmtIdx],
-        out: &mut impl Write,
-    ) -> Result<()> {
+impl<Out> Interpreter<Out>
+where
+    Out: Write,
+{
+    pub fn interpret(&mut self, source: &str, ast: &Ast, stmts: &[StmtIdx]) -> Result<()> {
         for stmt in stmts {
-            self.execute(source, ast, *stmt, out)?;
+            self.execute(source, ast, *stmt)?;
         }
         Ok(())
     }
 
-    fn execute(
-        &mut self,
-        source: &str,
-        ast: &Ast,
-        stmt: StmtIdx,
-        out: &mut impl Write,
-    ) -> Result<()> {
+    fn execute(&mut self, source: &str, ast: &Ast, stmt: StmtIdx) -> Result<()> {
         match ast.stmt(stmt) {
             Stmt::If {
                 cond,
@@ -76,17 +65,20 @@ impl Interpreter {
                 else_branch,
             } => {
                 if self.evaluate(source, ast, *cond)?.is_truthy() {
-                    self.execute(source, ast, *then_branch, out)?;
+                    self.execute(source, ast, *then_branch)?;
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(source, ast, *else_branch, out)?;
+                    self.execute(source, ast, *else_branch)?;
                 }
             }
             Stmt::While { cond, body } => {
                 while self.evaluate(source, ast, *cond)?.is_truthy() {
-                    self.execute(source, ast, *body, out)?;
+                    self.execute(source, ast, *body)?;
                 }
             }
-            Stmt::Print(expr) => writeln!(out, "{}", self.evaluate(source, ast, *expr)?).unwrap(),
+            Stmt::Print(expr) => {
+                let val = self.evaluate(source, ast, *expr)?;
+                writeln!(self.out, "{val}").unwrap()
+            }
             Stmt::VarDecl { name, init } => {
                 let init = match init {
                     Some(init) => self.evaluate(source, ast, *init)?,
@@ -99,23 +91,17 @@ impl Interpreter {
             Stmt::Expression(expr) => {
                 self.evaluate(source, ast, *expr)?;
             }
-            Stmt::Block(stmts) => self.execute_block(source, ast, stmts, out)?,
+            Stmt::Block(stmts) => self.execute_block(source, ast, stmts)?,
             Stmt::ParseErr => return Err(Error::Parsing),
         }
         Ok(())
     }
 
-    fn execute_block(
-        &mut self,
-        source: &str,
-        ast: &Ast,
-        stmts: &[StmtIdx],
-        out: &mut impl Write,
-    ) -> Result<()> {
+    fn execute_block(&mut self, source: &str, ast: &Ast, stmts: &[StmtIdx]) -> Result<()> {
         self.env_tree.push(Env::new());
         let result = (|| {
             for stmt in stmts {
-                self.execute(source, ast, *stmt, out)?;
+                self.execute(source, ast, *stmt)?;
             }
             Ok(())
         })();
