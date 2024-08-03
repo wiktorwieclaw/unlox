@@ -53,12 +53,13 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut stream: impl TokenStream, ast: &mut Ast) -> Result<Vec<StmtIdx>> {
+pub fn parse(mut stream: impl TokenStream) -> Result<(Ast, Vec<StmtIdx>)> {
+    let mut ast = Ast::new();
     let mut stmts = vec![];
     while !stream.eof() {
-        stmts.push(declaration(&mut stream, ast));
+        stmts.push(declaration(&mut stream, &mut ast));
     }
-    Ok(stmts)
+    Ok((ast, stmts))
 }
 
 fn declaration(stream: &mut impl TokenStream, ast: &mut Ast) -> StmtIdx {
