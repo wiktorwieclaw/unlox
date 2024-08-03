@@ -13,20 +13,6 @@ impl Ast {
         Self::default()
     }
 
-    pub fn insert_expr(&mut self, expr: Expr) -> ExprIdx {
-        let len = self.exprs.len();
-        self.exprs.push(expr);
-        ExprIdx(len)
-    }
-
-    pub fn expr(&self, idx: ExprIdx) -> &Expr {
-        &self.exprs[idx.0]
-    }
-
-    pub fn expr_mut(&mut self, idx: ExprIdx) -> &mut Expr {
-        &mut self.exprs[idx.0]
-    }
-
     pub fn insert_stmt(&mut self, stmt: Stmt) -> StmtIdx {
         let len = self.stmts.len();
         self.stmts.push(stmt);
@@ -40,13 +26,21 @@ impl Ast {
     pub fn stmt_mut(&mut self, idx: ExprIdx) -> &mut Stmt {
         &mut self.stmts[idx.0]
     }
+
+    pub fn insert_expr(&mut self, expr: Expr) -> ExprIdx {
+        let len = self.exprs.len();
+        self.exprs.push(expr);
+        ExprIdx(len)
+    }
+
+    pub fn expr(&self, idx: ExprIdx) -> &Expr {
+        &self.exprs[idx.0]
+    }
+
+    pub fn expr_mut(&mut self, idx: ExprIdx) -> &mut Expr {
+        &mut self.exprs[idx.0]
+    }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub struct ExprIdx(usize);
-
-#[derive(Debug, Clone, Copy)]
-pub struct StmtIdx(usize);
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
@@ -69,6 +63,9 @@ pub enum Stmt {
     ParseErr,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct StmtIdx(usize);
+
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary(Token, ExprIdx, ExprIdx),
@@ -87,6 +84,9 @@ pub enum Expr {
         args: Vec<ExprIdx>,
     },
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ExprIdx(usize);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lit {
