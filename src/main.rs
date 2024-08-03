@@ -5,6 +5,7 @@ use std::{
     io::{self, BufRead, Write},
     process,
 };
+use unlox_ast::Ast;
 use unlox_interpreter::Interpreter;
 use unlox_lexer::Lexer;
 
@@ -59,15 +60,16 @@ fn run_prompt() -> io::Result<()> {
 
 fn run(code: &str, interpreter: &mut Interpreter) {
     let lexer = Lexer::new(code);
-    let ast = match unlox_parse::parse(lexer) {
-        Ok(ast) => ast,
+    let mut ast = Ast::new();
+    let stmts = match unlox_parse::parse(lexer, &mut ast) {
+        Ok(stmts) => stmts,
         Err(e) => {
             eprintln!("{e}");
             return;
         }
     };
 
-    match interpreter.interpret(code, &ast, &mut std::io::stdout()) {
+    match interpreter.interpret(code, &ast, &stmts, &mut std::io::stdout()) {
         Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
         Err(e) => eprintln!("{e}"),
     }

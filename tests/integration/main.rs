@@ -1,3 +1,4 @@
+use unlox_ast::Ast;
 use unlox_interpreter::Interpreter;
 use unlox_lexer::Lexer;
 
@@ -11,10 +12,11 @@ enum Error {
 fn interpret(code: &str) -> Result<String, Error> {
     let mut out = Vec::new();
     let lexer = Lexer::new(code);
-    let ast = unlox_parse::parse(lexer).map_err(Error::Parse)?;
+    let mut ast = Ast::new();
+    let stmts = unlox_parse::parse(lexer, &mut ast).map_err(Error::Parse)?;
     let mut interpreter = Interpreter::new();
     interpreter
-        .interpret(code, &ast, &mut out)
+        .interpret(code, &ast, &stmts, &mut out)
         .map_err(Error::Interpret)?;
     Ok(String::from_utf8(out).unwrap())
 }

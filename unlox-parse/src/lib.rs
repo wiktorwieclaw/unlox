@@ -32,7 +32,7 @@ use std::fmt::Display;
 
 use unlox_ast::{
     tokens::{matcher, TokenStream, TokenStreamExt},
-    Expr, Lit, Stmt, Token, TokenKind,
+    Ast, Expr, ExprIdx, Lit, Stmt, StmtIdx, Token, TokenKind,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -53,60 +53,61 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut stream: impl TokenStream) -> Result<Vec<Stmt>> {
+pub fn parse(mut stream: impl TokenStream, ast: &mut Ast) -> Result<Vec<StmtIdx>> {
     let mut stmts = vec![];
     while !stream.eof() {
-        stmts.push(declaration(&mut stream));
+        stmts.push(declaration(&mut stream, ast));
     }
     Ok(stmts)
 }
 
-fn declaration(stream: &mut impl TokenStream) -> Stmt {
+fn declaration(stream: &mut impl TokenStream, ast: &mut Ast) -> StmtIdx {
     let token = stream.peek();
     let result = match &token.kind {
         TokenKind::Var => {
             stream.next();
-            var_decl(stream)
+            var_decl(stream, ast)
         }
-        _ => statement(stream),
+        _ => statement(stream, ast),
     };
     result
         .inspect_err(|e| eprintln!("{e}"))
         .ok()
         .unwrap_or_else(|| {
             synchronize(stream);
-            Stmt::ParseErr
+            ast.insert_stmt(Stmt::ParseErr)
         })
 }
 
-fn statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+fn statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
     let token = stream.peek();
     match &token.kind {
         TokenKind::For => {
             stream.next();
-            for_statement(stream)
+            for_statement(stream, ast)
         }
         TokenKind::If => {
             stream.next();
-            if_statement(stream)
+            if_statement(stream, ast)
         }
         TokenKind::Print => {
             stream.next();
-            print_statement(stream)
+            print_statement(stream, ast)
         }
         TokenKind::While => {
             stream.next();
-            while_statement(stream)
+            while_statement(stream, ast)
         }
         TokenKind::LeftBrace => {
             stream.next();
-            Ok(Stmt::Block(block(stream)?))
+            let block = block(stream, ast)?;
+            Ok(ast.insert_stmt(Stmt::Block(block)))
         }
-        _ => expression_statement(stream),
+        _ => expression_statement(stream, ast),
     }
 }
 
-fn for_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+fn for_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
     stream
         .match_next(matcher::eq(TokenKind::LeftParen))
         .map_err(|t| Error::new(t, "Expected '(' after 'for'."))?;
@@ -117,13 +118,13 @@ fn for_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
         }
         TokenKind::Var => {
             stream.next();
-            Some(var_decl(stream)?)
+            Some(var_decl(stream, ast)?)
         }
-        _ => Some(expression_statement(stream)?),
+        _ => Some(expression_statement(stream, ast)?),
     };
 
     let cond = if stream.peek().kind != TokenKind::Semicolon {
-        Some(expression(stream)?)
+        Some(expression(stream, ast)?)
     } else {
         None
     };
@@ -133,7 +134,7 @@ fn for_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
         .map_err(|t| Error::new(t, "Expected ';' after loop condition."))?;
 
     let inc = if stream.peek().kind != TokenKind::RightParen {
-        Some(expression(stream)?)
+        Some(expression(stream, ast)?)
     } else {
         None
     };
@@ -142,80 +143,75 @@ fn for_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
         .match_next(matcher::eq(TokenKind::RightParen))
         .map_err(|t| Error::new(t, "Expected ')' after for clauses."))?;
 
-    let mut body = statement(stream)?;
+    let mut body = statement(stream, ast)?;
     if let Some(inc) = inc {
-        body = Stmt::Block(vec![body, Stmt::Expression(inc)])
+        let inc = ast.insert_stmt(Stmt::Expression(inc));
+        body = ast.insert_stmt(Stmt::Block(vec![body, inc]));
     }
-    let cond = cond.unwrap_or(Expr::Literal(Lit::Bool(true)));
-    let while_stmt = Stmt::While {
-        cond,
-        body: Box::new(body),
-    };
+    let cond = cond.unwrap_or_else(|| ast.insert_expr(Expr::Literal(Lit::Bool(true))));
+    let while_stmt = ast.insert_stmt(Stmt::While { cond, body });
     let for_stmt = if let Some(init) = init {
-        Stmt::Block(vec![init, while_stmt])
+        ast.insert_stmt(Stmt::Block(vec![init, while_stmt]))
     } else {
         while_stmt
     };
     Ok(for_stmt)
 }
 
-fn if_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+fn if_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
     stream
         .match_next(matcher::eq(TokenKind::LeftParen))
         .map_err(|t| Error::new(t, "Expected '(' after 'if'."))?;
-    let cond = expression(stream)?;
+    let cond = expression(stream, ast)?;
     stream
         .match_next(matcher::eq(TokenKind::RightParen))
         .map_err(|t| Error::new(t, "Expected ')' after if condition."))?;
-    let then_branch = statement(stream)?;
+    let then_branch = statement(stream, ast)?;
     let else_branch = stream
         .match_next(matcher::eq(TokenKind::Else))
         .ok()
-        .map(|_| statement(stream))
+        .map(|_| statement(stream, ast))
         .transpose()?;
-    Ok(Stmt::If {
+    Ok(ast.insert_stmt(Stmt::If {
         cond,
-        then_branch: Box::new(then_branch),
-        else_branch: else_branch.map(Box::new),
-    })
+        then_branch,
+        else_branch,
+    }))
 }
 
-fn while_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
+fn while_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
     stream
         .match_next(matcher::eq(TokenKind::LeftParen))
         .map_err(|t| Error::new(t, "Expected '(' after 'while'."))?;
-    let cond = expression(stream)?;
+    let cond = expression(stream, ast)?;
     stream
         .match_next(matcher::eq(TokenKind::RightParen))
         .map_err(|t| Error::new(t, "Expected ')' after condition."))?;
-    let body = statement(stream)?;
-    Ok(Stmt::While {
-        cond,
-        body: Box::new(body),
-    })
+    let body = statement(stream, ast)?;
+    Ok(ast.insert_stmt(Stmt::While { cond, body }))
 }
 
-fn print_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
-    let expr = expression(stream)?;
+fn print_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
+    let expr = expression(stream, ast)?;
     stream
         .match_next(matcher::eq(TokenKind::Semicolon))
         .map_err(|t| Error::new(t, "Expected ';' after value."))?;
-    Ok(Stmt::Print(expr))
+    Ok(ast.insert_stmt(Stmt::Print(expr)))
 }
 
-fn expression_statement(stream: &mut impl TokenStream) -> Result<Stmt> {
-    let expr = expression(stream)?;
+fn expression_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
+    let expr = expression(stream, ast)?;
     stream
         .match_next(matcher::eq(TokenKind::Semicolon))
         .map_err(|t| Error::new(t, "Expected ';' after expression."))?;
-    Ok(Stmt::Expression(expr))
+    Ok(ast.insert_stmt(Stmt::Expression(expr)))
 }
 
-fn block(stream: &mut impl TokenStream) -> Result<Vec<Stmt>> {
+fn block(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Vec<StmtIdx>> {
     let mut stmts = vec![];
 
     while stream.peek().kind != TokenKind::RightBrace && !stream.eof() {
-        stmts.push(declaration(stream));
+        stmts.push(declaration(stream, ast));
     }
 
     stream
@@ -224,37 +220,39 @@ fn block(stream: &mut impl TokenStream) -> Result<Vec<Stmt>> {
     Ok(stmts)
 }
 
-fn var_decl(stream: &mut impl TokenStream) -> Result<Stmt> {
+fn var_decl(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<StmtIdx> {
     let name = stream
         .match_next(matcher::eq(TokenKind::Identifier))
         .map_err(|t| Error::new(t, "Expected variable name."))?;
     let token = stream.peek();
     let init = if token.kind == TokenKind::Equal {
         stream.next();
-        Some(expression(stream)?)
+        Some(expression(stream, ast)?)
     } else {
         None
     };
     stream
         .match_next(matcher::eq(TokenKind::Semicolon))
         .map_err(|t| Error::new(t, "Expected ';' after variable declaration."))?;
-    Ok(Stmt::VarDecl { name, init })
+    Ok(ast.insert_stmt(Stmt::VarDecl { name, init }))
 }
 
-fn expression(stream: &mut impl TokenStream) -> Result<Expr> {
-    assignment(stream)
+fn expression(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    assignment(stream, ast)
 }
 
-fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
-    let expr = or(stream)?;
+fn assignment(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let expr = or(stream, ast)?;
 
     if let Ok(equals) = stream.match_next(matcher::eq(TokenKind::Equal)) {
-        let value = assignment(stream)?;
-        if let Expr::Variable(name) = expr {
-            Ok(Expr::Assign {
-                var: name,
-                value: Box::new(value),
-            })
+        let value = assignment(stream, ast)?;
+        let expr_mut = ast.expr_mut(expr);
+        if let Expr::Variable(name) = expr_mut {
+            *expr_mut = Expr::Assign {
+                var: std::mem::take(name),
+                value,
+            };
+            Ok(expr)
         } else {
             Err(Error::new(equals, "Invalid assignment target."))
         }
@@ -263,83 +261,88 @@ fn assignment(stream: &mut impl TokenStream) -> Result<Expr> {
     }
 }
 
-fn or(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = and(stream)?;
+fn or(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = and(stream, ast)?;
 
     while let TokenKind::Or = stream.peek().kind {
         let operator = stream.next();
-        let right = and(stream)?;
-        expr = Expr::Logical(operator, Box::new(expr), Box::new(right));
+        let right = and(stream, ast)?;
+        expr = ast.insert_expr(Expr::Logical(operator, expr, right));
     }
 
     Ok(expr)
 }
 
-fn and(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = equality(stream)?;
+fn and(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = equality(stream, ast)?;
 
     while let TokenKind::And = stream.peek().kind {
         let operator = stream.next();
-        let right = equality(stream)?;
-        expr = Expr::Logical(operator, Box::new(expr), Box::new(right));
+        let right = equality(stream, ast)?;
+        expr = ast.insert_expr(Expr::Logical(operator, expr, right));
     }
 
     Ok(expr)
 }
 
-fn equality(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = comparison(stream)?;
+fn equality(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = comparison(stream, ast)?;
     while let TokenKind::BangEqual | TokenKind::EqualEqual = stream.peek().kind {
         let token = stream.next();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(comparison(stream)?));
+        let right = comparison(stream, ast)?;
+        expr = ast.insert_expr(Expr::Binary(token, expr, right));
     }
     Ok(expr)
 }
 
-fn comparison(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = term(stream)?;
+fn comparison(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = term(stream, ast)?;
     while let TokenKind::Less
     | TokenKind::LessEqual
     | TokenKind::Greater
     | TokenKind::GreaterEqual = stream.peek().kind
     {
         let token = stream.next();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(term(stream)?));
+        let right = term(stream, ast)?;
+        expr = ast.insert_expr(Expr::Binary(token, expr, right));
     }
     Ok(expr)
 }
 
-fn term(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = factor(stream)?;
+fn term(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = factor(stream, ast)?;
     while let TokenKind::Minus | TokenKind::Plus = stream.peek().kind {
         let token = stream.next();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(factor(stream)?));
+        let right = factor(stream, ast)?;
+        expr = ast.insert_expr(Expr::Binary(token, expr, right));
     }
     Ok(expr)
 }
 
-fn factor(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = unary(stream)?;
+fn factor(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = unary(stream, ast)?;
     while let TokenKind::Slash | TokenKind::Star = stream.peek().kind {
         let token = stream.next();
-        expr = Expr::Binary(token, Box::new(expr), Box::new(unary(stream)?));
+        let right = unary(stream, ast)?;
+        expr = ast.insert_expr(Expr::Binary(token, expr, right));
     }
     Ok(expr)
 }
 
-fn unary(stream: &mut impl TokenStream) -> Result<Expr> {
+fn unary(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
     match stream.peek().kind {
         TokenKind::Bang | TokenKind::Minus => {
             let token = stream.next();
-            let expr = Expr::Unary(token, Box::new(unary(stream)?));
+            let expr = unary(stream, ast)?;
+            let expr = ast.insert_expr(Expr::Unary(token, expr));
             Ok(expr)
         }
-        _ => call(stream),
+        _ => call(stream, ast),
     }
 }
 
-fn call(stream: &mut impl TokenStream) -> Result<Expr> {
-    let mut expr = primary(stream)?;
+fn call(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
+    let mut expr = primary(stream, ast)?;
     while let TokenKind::LeftParen = stream.peek().kind {
         stream.next();
 
@@ -352,7 +355,7 @@ fn call(stream: &mut impl TokenStream) -> Result<Expr> {
                         "Can't have more than 255 arguments",
                     ));
                 }
-                args.push(expression(stream)?);
+                args.push(expression(stream, ast)?);
                 if stream.match_next(matcher::eq(TokenKind::Comma)).is_err() {
                     break;
                 }
@@ -362,29 +365,29 @@ fn call(stream: &mut impl TokenStream) -> Result<Expr> {
         let paren = stream
             .match_next(matcher::eq(TokenKind::RightParen))
             .map_err(|t| Error::new(t, "Expect ')' after arguments."))?;
-        expr = Expr::Call {
-            callee: Box::new(expr),
+        expr = ast.insert_expr(Expr::Call {
+            callee: expr,
             paren,
             args,
-        };
+        });
     }
     Ok(expr)
 }
 
-fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
+fn primary(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<ExprIdx> {
     let token = stream.peek();
     let expr = match &token.kind {
         TokenKind::False => Expr::Literal(Lit::Bool(false)),
         TokenKind::True => Expr::Literal(Lit::Bool(true)),
         TokenKind::Nil => Expr::Literal(Lit::Nil),
         TokenKind::Number(n) => Expr::Literal(Lit::Number(*n)),
-        TokenKind::String(value)=> Expr::Literal(Lit::String(value.clone())),
+        TokenKind::String(value) => Expr::Literal(Lit::String(value.clone())),
         TokenKind::StringUnterminated(_) => {
             return Err(Error::new(token.clone(), "Unterminated string."));
         }
         TokenKind::LeftParen => {
             stream.next();
-            let expr = expression(stream)?;
+            let expr = expression(stream, ast)?;
             let token = stream.peek();
             if token.kind != TokenKind::RightParen {
                 return Err(Error::new(
@@ -392,7 +395,7 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
                     r#"Expected ")" after expression."#,
                 ));
             }
-            Expr::Grouping(Box::new(expr))
+            Expr::Grouping(expr)
         }
         TokenKind::Identifier => Expr::Variable(token.clone()),
         TokenKind::Eof => {
@@ -406,7 +409,7 @@ fn primary(stream: &mut impl TokenStream) -> Result<Expr> {
         }
     };
     stream.next();
-    Ok(expr)
+    Ok(ast.insert_expr(expr))
 }
 
 fn synchronize(stream: &mut impl TokenStream) {

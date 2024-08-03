@@ -65,7 +65,6 @@ impl<'a> Selection<'a> {
         self.start = self.end
     }
 
-
     pub fn range(&self) -> Range<usize> {
         self.start..self.end
     }

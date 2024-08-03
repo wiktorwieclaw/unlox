@@ -1,13 +1,13 @@
 use std::ops::Range;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: Range<usize>,
     pub line: u32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum TokenKind {
     // single character
     LeftParen,
@@ -60,6 +60,7 @@ pub enum TokenKind {
     Unknown,
 
     // end of input
+    #[default]
     Eof,
 }
 
