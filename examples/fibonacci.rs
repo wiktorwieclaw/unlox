@@ -22,7 +22,7 @@ fn main() {
         print end - start;
     "#;
     let lexer = Lexer::new(code);
-    let (ast, stmts) = unlox_parse::parse(lexer).unwrap();
+    let ast = unlox_parse::parse(lexer).unwrap();
     let mut interpreter = Interpreter::new(stdout());
-    interpreter.interpret(code, &ast, &stmts).unwrap();
+    interpreter.interpret(code, &ast).unwrap();
 }

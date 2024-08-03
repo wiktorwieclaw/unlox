@@ -59,15 +59,15 @@ fn run_prompt() -> io::Result<()> {
 
 fn run(code: &str, interpreter: &mut Interpreter<Stdout>) {
     let lexer = Lexer::new(code);
-    let (ast, stmts) = match unlox_parse::parse(lexer) {
-        Ok((ast, stmts)) => (ast, stmts),
+    let ast = match unlox_parse::parse(lexer) {
+        Ok(ast) => ast,
         Err(e) => {
             eprintln!("{e}");
             return;
         }
     };
 
-    match interpreter.interpret(code, &ast, &stmts) {
+    match interpreter.interpret(code, &ast) {
         Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
         Err(e) => eprintln!("{e}"),
     }

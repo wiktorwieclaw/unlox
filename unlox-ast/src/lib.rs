@@ -4,8 +4,9 @@ pub use unlox_tokens as tokens;
 
 #[derive(Debug, Default, Clone)]
 pub struct Ast {
-    pub stmts: Vec<Stmt>,
-    pub exprs: Vec<Expr>,
+    stmts: Vec<Stmt>,
+    exprs: Vec<Expr>,
+    roots: Vec<StmtIdx>,
 }
 
 impl Ast {
@@ -13,7 +14,13 @@ impl Ast {
         Self::default()
     }
 
-    pub fn insert_stmt(&mut self, stmt: Stmt) -> StmtIdx {
+    pub fn push_root_stmt(&mut self, stmt: Stmt) -> StmtIdx {
+        let idx = self.push_stmt(stmt);
+        self.roots.push(idx);
+        idx
+    }
+
+    pub fn push_stmt(&mut self, stmt: Stmt) -> StmtIdx {
         let len = self.stmts.len();
         self.stmts.push(stmt);
         StmtIdx(len)
@@ -27,7 +34,7 @@ impl Ast {
         &mut self.stmts[idx.0]
     }
 
-    pub fn insert_expr(&mut self, expr: Expr) -> ExprIdx {
+    pub fn push_expr(&mut self, expr: Expr) -> ExprIdx {
         let len = self.exprs.len();
         self.exprs.push(expr);
         ExprIdx(len)
@@ -39,6 +46,10 @@ impl Ast {
 
     pub fn expr_mut(&mut self, idx: ExprIdx) -> &mut Expr {
         &mut self.exprs[idx.0]
+    }
+
+    pub fn roots(&self) -> &[StmtIdx] {
+        &self.roots
     }
 }
 

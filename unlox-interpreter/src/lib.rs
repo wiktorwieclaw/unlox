@@ -50,8 +50,8 @@ impl<Out> Interpreter<Out>
 where
     Out: Write,
 {
-    pub fn interpret(&mut self, source: &str, ast: &Ast, stmts: &[StmtIdx]) -> Result<()> {
-        for stmt in stmts {
+    pub fn interpret(&mut self, source: &str, ast: &Ast) -> Result<()> {
+        for stmt in ast.roots() {
             self.execute(source, ast, *stmt)?;
         }
         Ok(())
