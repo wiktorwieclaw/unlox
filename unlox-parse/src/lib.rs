@@ -4,12 +4,13 @@
 //!
 //! declaration    → fun_decl | var_decl | statement ;
 //!
-//! statement      → expr_stmt | for_stmt | if_stmt | print_stmt | while_stmt | block ;
+//! statement      → expr_stmt | for_stmt | if_stmt | print_stmt | return_stmt | while_stmt | block ;
 //!
 //! expr_stmt      → expression ";" ;
 //! for_stmt       → "for" "(" (var_decl | expr_stmt | ";" ) expression? ";" expression? ")" statement;
 //! if_stmt        → "if" "(" epxression ")" statement ( "else" statement)? ;
 //! print_stmt     → "print" expression ";" ;
+//! return_stmt    → "return" expression? ";" ;
 //! while_stmt     → "while" "(" expression ")" statement ;
 //! block          → "{" declaration* "}" ;
 //!
@@ -100,6 +101,10 @@ fn statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
         TokenKind::Print => {
             stream.next();
             print_statement(stream, ast)
+        }
+        TokenKind::Return => {
+            let keyword = stream.next();
+            return_statement(stream, ast, keyword)
         }
         TokenKind::While => {
             stream.next();
@@ -217,6 +222,18 @@ fn print_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt>
         .match_next(matcher::eq(TokenKind::Semicolon))
         .map_err(|t| Error::new(t, "Expected ';' after value."))?;
     Ok(Stmt::Print(ast.push_expr(expr)))
+}
+
+fn return_statement(stream: &mut impl TokenStream, ast: &mut Ast, keyword: Token) -> Result<Stmt> {
+    let val = if stream.peek().kind != TokenKind::Semicolon {
+        Some(expression(stream, ast)?)
+    } else {
+        None
+    };
+    stream
+        .match_next(matcher::eq(TokenKind::Semicolon))
+        .map_err(|t| Error::new(t, "Expected ';' after return value."))?;
+    Ok(Stmt::Return(keyword, val.map(|v| ast.push_expr(v))))
 }
 
 fn expression_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {

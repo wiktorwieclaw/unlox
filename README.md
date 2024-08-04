@@ -2,26 +2,47 @@
 An interpreter for the Lox programming language written in Rust.
 
 ## Example
-Print 50th element in the Fibonacci sequence:
+Calculate 28th element in the Fibonacci sequence:
 ```
-var start = clock();
-var n = 50;
+fun fib_iterative(n) {
+    var a = 0;
+    var b = 1;
 
-var a = 0;
-var b = 1;
-
-for (var i = 0; i < n; i = i + 1) {
-    var temp = a;
-    a = b;
-    b = temp + b;
+    for (var i = 0; i < n; i = i + 1) {
+        var temp = a;
+        a = b;
+        b = temp + b;
+    }
+    return a;
 }
 
-var end = clock();
-print a;
-print end - start;
+fun fib_recursive(n) {
+    if (n <= 1) return n;
+    return fib_recursive(n - 2) + fib_recursive(n - 1);
+}
+
+fun bench(f, n) {
+    var start = clock();
+    var result = f(n);
+    var time_secs = clock() - start;
+    print result;
+    print time_secs;
+}
+
+var n = 28;
+
+print "iterative:";
+bench(fib_iterative, n);
+print "\nrecursive:";
+bench(fib_recursive, n);
 ```
 Output:
 ```
-12586269025
-0.00004100799560546875
+iterative:
+317811
+0.000029325485229492188
+
+recursive:
+317811
+0.564891815185546
 ```

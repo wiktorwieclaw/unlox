@@ -1,6 +1,7 @@
 use env::{Env, EnvCactus, EnvIndex};
 use std::{
     io::Write,
+    ops::ControlFlow,
     time::{SystemTime, UNIX_EPOCH},
 };
 use unlox_ast::{Ast, Expr, ExprIdx, Stmt, StmtIdx, Token, TokenKind};
@@ -60,7 +61,7 @@ where
         Ok(())
     }
 
-    fn execute(&mut self, source: &str, ast: &Ast, stmt: StmtIdx) -> Result<()> {
+    fn execute(&mut self, source: &str, ast: &Ast, stmt: StmtIdx) -> Result<ControlFlow<Val>> {
         match ast.stmt(stmt) {
             Stmt::If {
                 cond,
@@ -68,19 +69,33 @@ where
                 else_branch,
             } => {
                 if self.evaluate(source, ast, *cond)?.is_truthy() {
-                    self.execute(source, ast, *then_branch)?;
+                    self.execute(source, ast, *then_branch)
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(source, ast, *else_branch)?;
+                    self.execute(source, ast, *else_branch)
+                } else {
+                    Ok(ControlFlow::Continue(()))
                 }
             }
             Stmt::While { cond, body } => {
                 while self.evaluate(source, ast, *cond)?.is_truthy() {
-                    self.execute(source, ast, *body)?;
+                    let control_flow = self.execute(source, ast, *body)?;
+                    if control_flow.is_break() {
+                        return Ok(control_flow);
+                    }
                 }
+                Ok(ControlFlow::Continue(()))
             }
             Stmt::Print(expr) => {
                 let val = self.evaluate(source, ast, *expr)?;
-                writeln!(self.out, "{val}").unwrap()
+                writeln!(self.out, "{val}").unwrap();
+                Ok(ControlFlow::Continue(()))
+            }
+            Stmt::Return(_, expr) => {
+                let val = expr
+                    .map(|e| self.evaluate(source, ast, e))
+                    .transpose()?
+                    .unwrap_or_default();
+                Ok(ControlFlow::Break(val))
             }
             Stmt::VarDecl { name, init } => {
                 let init = match init {
@@ -90,12 +105,14 @@ where
                 self.env_tree
                     .current_env_mut()
                     .define_var(source[name.lexeme.clone()].to_owned(), init);
+                Ok(ControlFlow::Continue(()))
             }
             Stmt::Expression(expr) => {
                 self.evaluate(source, ast, *expr)?;
+                Ok(ControlFlow::Continue(()))
             }
             Stmt::Block(stmts) => {
-                self.execute_block(source, ast, stmts, Env::new(), self.env_tree.current())?
+                self.execute_block(source, ast, stmts, Env::new(), self.env_tree.current())
             }
             Stmt::Function { name, params, body } => {
                 let callable = Callable::Function {
@@ -107,10 +124,10 @@ where
                     source[name.lexeme.clone()].to_owned(),
                     Val::Callable(callable),
                 );
+                Ok(ControlFlow::Continue(()))
             }
-            Stmt::ParseErr => return Err(Error::Parsing),
+            Stmt::ParseErr => Err(Error::Parsing),
         }
-        Ok(())
     }
 
     fn execute_block(
@@ -120,13 +137,16 @@ where
         stmts: &[StmtIdx],
         env: Env,
         env_parent: EnvIndex,
-    ) -> Result<()> {
+    ) -> Result<ControlFlow<Val>> {
         self.env_tree.push_at(env_parent, env);
         let result = (|| {
             for stmt in stmts {
-                self.execute(source, ast, *stmt)?;
+                let control_flow = self.execute(source, ast, *stmt)?;
+                if control_flow.is_break() {
+                    return Ok(control_flow);
+                }
             }
-            Ok(())
+            Ok(ControlFlow::Continue(()))
         })();
         self.env_tree.pop();
         result
@@ -261,8 +281,12 @@ where
                     let name = &source[param.lexeme.clone()];
                     env.define_var(name.to_owned(), arg);
                 }
-                self.execute_block(source, ast, &body, env, self.env_tree.global())?;
-                Ok(Val::Nil)
+                let control_flow =
+                    self.execute_block(source, ast, &body, env, self.env_tree.global())?;
+                match control_flow {
+                    ControlFlow::Continue(()) => Ok(Val::Nil),
+                    ControlFlow::Break(val) => Ok(val),
+                }
             }
         }
     }

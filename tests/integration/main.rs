@@ -114,10 +114,20 @@ fn functions() {
                 a = b;
                 b = temp + b;
             }
-            print a;
+            return a;
         }
 
-        fibonacci(12);
+        print fibonacci(12);
+    "#;
+    assert_eq!(interpret(code).unwrap(), "144\n");
+
+    let code = r#"
+        fun fibonacci(n) {
+            if (n <= 1) return n;
+            return fibonacci(n - 2) + fibonacci(n - 1);
+        }
+
+        print fibonacci(12);
     "#;
     assert_eq!(interpret(code).unwrap(), "144\n");
 

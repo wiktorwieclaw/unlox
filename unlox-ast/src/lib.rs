@@ -65,6 +65,7 @@ pub enum Stmt {
         body: StmtIdx,
     },
     Print(ExprIdx),
+    Return(Token, Option<ExprIdx>),
     VarDecl {
         name: Token,
         init: Option<ExprIdx>,

@@ -1,10 +1,11 @@
 use unlox_ast::{Lit, StmtIdx, Token};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum Val {
     Number(f64),
     String(String),
     Bool(bool),
+    #[default]
     Nil,
     Callable(Callable),
 }
