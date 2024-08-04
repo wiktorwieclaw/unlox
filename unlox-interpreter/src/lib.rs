@@ -1,5 +1,8 @@
-use env::{Env, EnvCactus};
-use std::io::Write;
+use env::{Env, EnvCactus, EnvIndex};
+use std::{
+    io::Write,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use unlox_ast::{Ast, Expr, ExprIdx, Stmt, StmtIdx, Token, TokenKind};
 use val::{Callable, Val};
 
@@ -91,14 +94,34 @@ where
             Stmt::Expression(expr) => {
                 self.evaluate(source, ast, *expr)?;
             }
-            Stmt::Block(stmts) => self.execute_block(source, ast, stmts)?,
+            Stmt::Block(stmts) => {
+                self.execute_block(source, ast, stmts, Env::new(), self.env_tree.current())?
+            }
+            Stmt::Function { name, params, body } => {
+                let callable = Callable::Function {
+                    name: source[name.lexeme.clone()].to_owned(),
+                    params: params.clone(),
+                    body: body.clone(),
+                };
+                self.env_tree.current_env_mut().define_var(
+                    source[name.lexeme.clone()].to_owned(),
+                    Val::Callable(callable),
+                );
+            }
             Stmt::ParseErr => return Err(Error::Parsing),
         }
         Ok(())
     }
 
-    fn execute_block(&mut self, source: &str, ast: &Ast, stmts: &[StmtIdx]) -> Result<()> {
-        self.env_tree.push(Env::new());
+    fn execute_block(
+        &mut self,
+        source: &str,
+        ast: &Ast,
+        stmts: &[StmtIdx],
+        env: Env,
+        env_parent: EnvIndex,
+    ) -> Result<()> {
+        self.env_tree.push_at(env_parent, env);
         let result = (|| {
             for stmt in stmts {
                 self.execute(source, ast, *stmt)?;
@@ -218,9 +241,29 @@ where
                         got: args.len(),
                     });
                 }
-                callable.call(self, args)
+                self.call(source, ast, callable, args)?
             }
         };
         Ok(lit)
+    }
+
+    fn call(&mut self, source: &str, ast: &Ast, callable: Callable, args: Vec<Val>) -> Result<Val> {
+        match callable {
+            Callable::Clock => Ok(Val::Number(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64(),
+            )),
+            Callable::Function { params, body, .. } => {
+                let mut env = Env::new();
+                for (param, arg) in params.iter().zip(args) {
+                    let name = &source[param.lexeme.clone()];
+                    env.define_var(name.to_owned(), arg);
+                }
+                self.execute_block(source, ast, &body, env, self.env_tree.global())?;
+                Ok(Val::Nil)
+            }
+        }
     }
 }

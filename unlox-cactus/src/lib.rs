@@ -4,7 +4,7 @@ use slab::Slab;
 #[derive(Debug, Clone)]
 pub struct Cactus<T> {
     nodes: Slab<Node<T>>,
-    current: Option<Index>,
+    stack: Vec<Index>,
 }
 
 // Ensure `Node` remains private to protect tree's invariants.
@@ -22,7 +22,7 @@ impl<T> Default for Cactus<T> {
     fn default() -> Self {
         Self {
             nodes: Default::default(),
-            current: None,
+            stack: Vec::new(),
         }
     }
 }
@@ -44,26 +44,35 @@ impl<T> Cactus<T> {
         self.nodes.contains(idx.0)
     }
 
+    /// Returns the index of the top node of the active stack frame.
+    pub fn current(&self) -> Option<Index> {
+        self.stack.last().cloned()
+    }
+
     /// Pushes node on top of the active stack frame.
     pub fn push(&mut self, value: T) -> Index {
         let idx = Index(self.nodes.insert(Node {
             data: value,
-            parent: self.current,
+            parent: self.current(),
         }));
-        self.current = Some(idx);
+        self.stack.push(idx);
+        idx
+    }
+
+    pub fn push_at(&mut self, parent: Index, value: T) -> Index {
+        let idx = Index(self.nodes.insert(Node {
+            data: value,
+            parent: Some(parent),
+        }));
+        self.stack.push(idx);
         idx
     }
 
     /// Pops node out of the active stack frame.
     pub fn pop(&mut self) -> Option<T> {
-        let node = self.nodes.try_remove(self.current?.as_usize())?;
-        self.current = node.parent;
+        let node = self.nodes.try_remove(self.current()?.as_usize())?;
+        self.stack.pop();
         Some(node.data)
-    }
-
-    /// Returns the index of the top node of the active stack frame.
-    pub fn current(&self) -> Option<Index> {
-        self.current
     }
 
     /// Returns index of the parent's node.

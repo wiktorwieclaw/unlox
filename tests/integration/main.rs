@@ -1,4 +1,6 @@
-use unlox_interpreter::Interpreter;
+use assert_matches::assert_matches;
+use unlox_ast::TokenKind;
+use unlox_interpreter::{self as interpreter, Interpreter};
 use unlox_lexer::Lexer;
 
 #[derive(Debug, thiserror::Error)]
@@ -89,4 +91,55 @@ fn for_statements() {
         interpret(code).unwrap(),
         "0\n1\n1\n2\n3\n5\n8\n13\n21\n34\n55\n89\n"
     );
+}
+
+#[test]
+fn functions() {
+    let code = r#"
+        fun sayHi(first, last) {
+            print "Hi, " + first + " " + last + "!";
+        }
+
+        sayHi("Dear", "Reader");
+    "#;
+    assert_eq!(interpret(code).unwrap(), "Hi, Dear Reader!\n");
+
+    let code = r#"
+        fun fibonacci(n) {
+            var a = 0;
+            var b = 1;
+
+            for (var i = 0; i < n; i = i + 1) {
+                var temp = a;
+                a = b;
+                b = temp + b;
+            }
+            print a;
+        }
+
+        fibonacci(12);
+    "#;
+    assert_eq!(interpret(code).unwrap(), "144\n");
+
+    let code = r#"
+        var a = 1;
+
+        fun main() {
+            var b = 2;
+
+            fun nested() {
+                print a;
+                print b;
+            }
+
+            nested();
+        }
+        main();
+    "#;
+    let err = interpret(code).unwrap_err();
+    assert_matches!(err, Error::Interpret(interpreter::Error::UndefinedVariable { name, token }) => {
+        assert_eq!(name, "b");
+        assert_eq!(token.kind, TokenKind::Identifier);
+        assert_eq!(token.line, 9);
+    });
 }

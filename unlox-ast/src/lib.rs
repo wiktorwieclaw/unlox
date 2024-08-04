@@ -71,10 +71,15 @@ pub enum Stmt {
     },
     Expression(ExprIdx),
     Block(Vec<StmtIdx>),
+    Function {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<StmtIdx>,
+    },
     ParseErr,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StmtIdx(usize);
 
 #[derive(Debug, Clone)]

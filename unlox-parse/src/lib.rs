@@ -2,7 +2,7 @@
 //! ```text
 //! program        → declaration* EOF ;
 //!
-//! declaration    → var_decl | statement ;
+//! declaration    → fun_decl | var_decl | statement ;
 //!
 //! statement      → expr_stmt | for_stmt | if_stmt | print_stmt | while_stmt | block ;
 //!
@@ -13,6 +13,8 @@
 //! while_stmt     → "while" "(" expression ")" statement ;
 //! block          → "{" declaration* "}" ;
 //!
+//! fun_decl       → "fun" IDENTIFIER "(" parameters? ")" block ;
+//! parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 //! var_decl       → "var" IDENTIFIER ( "=" expression )? ";" ;
 //! expression     → assignment ;
 //! assignment     → IDENTIFIER "=" assignment | logic_or ;
@@ -68,6 +70,10 @@ fn declaration(stream: &mut impl TokenStream, ast: &mut Ast) -> Stmt {
         TokenKind::Var => {
             stream.next();
             var_decl(stream, ast)
+        }
+        TokenKind::Fun => {
+            stream.next();
+            fun_decl(stream, ast, "function")
         }
         _ => statement(stream, ast),
     };
@@ -230,8 +236,50 @@ fn block(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Vec<Stmt>> {
 
     stream
         .match_next(matcher::eq(TokenKind::RightBrace))
-        .map_err(|t| Error::new(t, "Expect '}' after block."))?;
+        .map_err(|t| Error::new(t, "Expected '}' after block."))?;
     Ok(stmts)
+}
+
+fn fun_decl(stream: &mut impl TokenStream, ast: &mut Ast, kind: &str) -> Result<Stmt> {
+    let name = stream
+        .match_next(matcher::eq(TokenKind::Identifier))
+        .map_err(|t| Error::new(t, format!("Expected {kind} name.")))?;
+    stream
+        .match_next(matcher::eq(TokenKind::LeftParen))
+        .map_err(|t| Error::new(t, format!("Expected '(' after {kind} name.")))?;
+    let mut params = vec![];
+    if stream.peek().kind != TokenKind::RightParen {
+        loop {
+            if params.len() >= 255 {
+                return Err(Error::new(
+                    stream.peek().clone(),
+                    "Can't have more than 255 parameters.",
+                ));
+            }
+
+            params.push(
+                stream
+                    .match_next(matcher::eq(TokenKind::Identifier))
+                    .map_err(|t| Error::new(t, "Expected parameter name."))?,
+            );
+
+            if stream.match_next(matcher::eq(TokenKind::Comma)).is_err() {
+                break;
+            }
+        }
+    }
+    stream
+        .match_next(matcher::eq(TokenKind::RightParen))
+        .map_err(|t| Error::new(t, "Expected ')' after parameters."))?;
+    stream
+        .match_next(matcher::eq(TokenKind::LeftBrace))
+        .map_err(|t| Error::new(t, "Expected '{' before {kind} body."))?;
+    let body = block(stream, ast)?;
+    Ok(Stmt::Function {
+        name,
+        params,
+        body: body.into_iter().map(|stmt| ast.push_stmt(stmt)).collect(),
+    })
 }
 
 fn var_decl(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {

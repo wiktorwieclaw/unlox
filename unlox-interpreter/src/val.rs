@@ -1,8 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use unlox_ast::Lit;
-
-use crate::Interpreter;
+use unlox_ast::{Lit, StmtIdx, Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Val {
@@ -16,6 +12,11 @@ pub enum Val {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Callable {
     Clock,
+    Function {
+        name: String,
+        params: Vec<Token>,
+        body: Vec<StmtIdx>,
+    },
 }
 
 impl Val {
@@ -49,25 +50,18 @@ impl std::fmt::Display for Val {
 
 impl std::fmt::Display for Callable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<native fn>")
+        match self {
+            Callable::Clock => write!(f, "<native fn>"),
+            Callable::Function { name, .. } => write!(f, "<fn {name}>"),
+        }
     }
 }
 
 impl Callable {
-    pub fn call<Out>(&self, _interpreter: &Interpreter<Out>, _args: Vec<Val>) -> Val {
-        match self {
-            Callable::Clock => Val::Number(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64(),
-            ),
-        }
-    }
-
     pub fn arity(&self) -> usize {
         match self {
             Callable::Clock => 0,
+            Callable::Function { params, .. } => params.len(),
         }
     }
 }
