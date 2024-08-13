@@ -46,3 +46,12 @@ recursive:
 317811
 0.564891815185546
 ```
+
+## Development 
+Run the following command in the root of the project to start the Dioxus dev server:
+
+```bash
+dx serve --bin www --hot-reload
+```
+
+- Open the browser to http://localhost:8080

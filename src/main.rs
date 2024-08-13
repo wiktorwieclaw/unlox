@@ -2,10 +2,10 @@ use std::{
     cell::Cell,
     cmp::Ordering,
     env, fs,
-    io::{self, BufRead, Stdout, Write},
+    io::{self, stderr, stdout, BufRead, Stderr, Stdout, Write},
     process,
 };
-use unlox_interpreter::Interpreter;
+use unlox_interpreter::{output::SplitOutput, Interpreter};
 use unlox_lexer::Lexer;
 
 thread_local! {
@@ -28,7 +28,7 @@ fn main() {
 
 fn run_file(path: &str) -> io::Result<()> {
     let code = fs::read_to_string(path)?;
-    let mut interpreter = Interpreter::new(std::io::stdout());
+    let mut interpreter = Interpreter::with_split_output(stdout(), stderr());
     run(&code, &mut interpreter);
     if HAD_ERROR.with(|e| e.get()) {
         process::exit(65);
@@ -40,9 +40,9 @@ fn run_file(path: &str) -> io::Result<()> {
 }
 
 fn run_prompt() -> io::Result<()> {
-    let stdout = io::stdin();
-    let mut lines = stdout.lock().lines();
-    let mut interpreter = Interpreter::new(std::io::stdout());
+    let stdin = io::stdin();
+    let mut lines = stdin.lock().lines();
+    let mut interpreter = Interpreter::with_split_output(stdout(), stderr());
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -57,18 +57,8 @@ fn run_prompt() -> io::Result<()> {
     Ok(())
 }
 
-fn run(code: &str, interpreter: &mut Interpreter<Stdout>) {
+fn run(code: &str, interpreter: &mut Interpreter<SplitOutput<Stdout, Stderr>>) {
     let lexer = Lexer::new(code);
-    let ast = match unlox_parse::parse(lexer) {
-        Ok(ast) => ast,
-        Err(e) => {
-            eprintln!("{e}");
-            return;
-        }
-    };
-
-    match interpreter.interpret(code, &ast) {
-        Ok(()) | Err(unlox_interpreter::Error::Parsing) => (),
-        Err(e) => eprintln!("{e}"),
-    }
+    let ast = unlox_parse::parse(lexer, &mut std::io::stderr());
+    interpreter.interpret(code, &ast);
 }

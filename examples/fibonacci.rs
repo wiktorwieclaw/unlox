@@ -1,4 +1,4 @@
-use std::io::stdout;
+use std::io::{stderr, stdout};
 
 use unlox_interpreter::Interpreter;
 use unlox_lexer::Lexer;
@@ -38,7 +38,7 @@ fn main() {
         bench(fib_recursive, n);
     ";
     let lexer = Lexer::new(code);
-    let ast = unlox_parse::parse(lexer).unwrap();
-    let mut interpreter = Interpreter::new(stdout());
-    interpreter.interpret(code, &ast).unwrap();
+    let ast = unlox_parse::parse(lexer, &mut stderr());
+    let mut interpreter = Interpreter::with_split_output(stdout(), stderr());
+    interpreter.interpret(code, &ast);
 }

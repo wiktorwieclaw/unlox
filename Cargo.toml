@@ -1,10 +1,13 @@
 [workspace]
 members = [
-    "unlox-ast", "unlox-cactus",
+    "unlox-ast",
+    "unlox-cactus",
     "unlox-interpreter",
     "unlox-lexer",
     "unlox-parse",
-    "unlox-tokens", "unlox-tree",
+    "unlox-tokens",
+    "unlox-tree",
+    "www"
 ]
 
 [package]

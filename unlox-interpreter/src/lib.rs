@@ -1,4 +1,5 @@
 use env::{Env, EnvCactus, EnvIndex};
+use output::{Output, SingleOutput, SplitOutput};
 use std::{
     io::Write,
     ops::ControlFlow,
@@ -8,6 +9,7 @@ use unlox_ast::{Ast, Expr, ExprIdx, Stmt, StmtIdx, Token, TokenKind};
 use val::{Callable, Val};
 
 mod env;
+pub mod output;
 mod val;
 
 #[derive(Debug, thiserror::Error)]
@@ -28,7 +30,7 @@ pub enum Error {
         expected: usize,
         got: usize,
     },
-    #[error("Parsing error.")]
+    #[error("The program terminated due to a syntax error.")]
     Parsing,
 }
 
@@ -39,26 +41,41 @@ pub struct Interpreter<Out> {
     out: Out,
 }
 
-impl<Out> Interpreter<Out> {
+impl<Out> Interpreter<SingleOutput<Out>> {
     pub fn new(out: Out) -> Self {
-        let mut global = Env::new();
-        global.define_var("clock".to_owned(), Val::Callable(Callable::Clock));
         Self {
-            env_tree: EnvCactus::with_global(global),
-            out,
+            env_tree: EnvCactus::with_global(new_global_env()),
+            out: SingleOutput(out),
         }
     }
 }
 
+impl<Out, Err> Interpreter<SplitOutput<Out, Err>> {
+    pub fn with_split_output(out: Out, err: Err) -> Self {
+        Self {
+            env_tree: EnvCactus::with_global(new_global_env()),
+            out: SplitOutput(out, err),
+        }
+    }
+}
+
+fn new_global_env() -> Env {
+    let mut global = Env::new();
+    global.define_var("clock".to_owned(), Val::Callable(Callable::Clock));
+    global
+}
+
 impl<Out> Interpreter<Out>
 where
-    Out: Write,
+    Out: Output,
 {
-    pub fn interpret(&mut self, source: &str, ast: &Ast) -> Result<()> {
+    pub fn interpret(&mut self, source: &str, ast: &Ast) {
         for stmt in ast.roots() {
-            self.execute(source, ast, *stmt)?;
+            if let Err(error) = self.execute(source, ast, *stmt) {
+                writeln!(self.out.err(), "{error}").unwrap();
+                return;
+            }
         }
-        Ok(())
     }
 
     fn execute(&mut self, source: &str, ast: &Ast, stmt: StmtIdx) -> Result<ControlFlow<Val>> {
@@ -87,7 +104,7 @@ where
             }
             Stmt::Print(expr) => {
                 let val = self.evaluate(source, ast, *expr)?;
-                writeln!(self.out, "{val}").unwrap();
+                writeln!(self.out.out(), "{val}").unwrap();
                 Ok(ControlFlow::Continue(()))
             }
             Stmt::Return(_, expr) => {

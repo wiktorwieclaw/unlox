@@ -31,7 +31,7 @@
 //! primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
 //! ```
 
-use std::fmt::Display;
+use std::{fmt::Display, io};
 
 use unlox_ast::{
     tokens::{matcher, TokenStream, TokenStreamExt},
@@ -56,16 +56,16 @@ impl Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub fn parse(mut stream: impl TokenStream) -> Result<Ast> {
+pub fn parse(mut stream: impl TokenStream, err: &mut impl io::Write) -> Ast {
     let mut ast = Ast::new();
     while !stream.eof() {
-        let stmt = declaration(&mut stream, &mut ast);
+        let stmt = declaration(&mut stream, err, &mut ast);
         ast.push_root_stmt(stmt);
     }
-    Ok(ast)
+    ast
 }
 
-fn declaration(stream: &mut impl TokenStream, ast: &mut Ast) -> Stmt {
+fn declaration(stream: &mut impl TokenStream, err: &mut impl io::Write, ast: &mut Ast) -> Stmt {
     let token = stream.peek();
     let result = match &token.kind {
         TokenKind::Var => {
@@ -74,12 +74,12 @@ fn declaration(stream: &mut impl TokenStream, ast: &mut Ast) -> Stmt {
         }
         TokenKind::Fun => {
             stream.next();
-            fun_decl(stream, ast, "function")
+            fun_decl(stream, err, ast, "function")
         }
-        _ => statement(stream, ast),
+        _ => statement(stream, err, ast),
     };
     result
-        .inspect_err(|e| eprintln!("{e}"))
+        .inspect_err(|e| writeln!(err, "[Line {}]: {e}", e.token.line).unwrap())
         .ok()
         .unwrap_or_else(|| {
             synchronize(stream);
@@ -87,16 +87,20 @@ fn declaration(stream: &mut impl TokenStream, ast: &mut Ast) -> Stmt {
         })
 }
 
-fn statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
+fn statement(
+    stream: &mut impl TokenStream,
+    err: &mut impl io::Write,
+    ast: &mut Ast,
+) -> Result<Stmt> {
     let token = stream.peek();
     let stmt = match &token.kind {
         TokenKind::For => {
             stream.next();
-            for_statement(stream, ast)
+            for_statement(stream, err, ast)
         }
         TokenKind::If => {
             stream.next();
-            if_statement(stream, ast)
+            if_statement(stream, err, ast)
         }
         TokenKind::Print => {
             stream.next();
@@ -108,11 +112,11 @@ fn statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
         }
         TokenKind::While => {
             stream.next();
-            while_statement(stream, ast)
+            while_statement(stream, err, ast)
         }
         TokenKind::LeftBrace => {
             stream.next();
-            let stmt_indices = block(stream, ast)?
+            let stmt_indices = block(stream, err, ast)?
                 .into_iter()
                 .map(|stmt| ast.push_stmt(stmt))
                 .collect();
@@ -123,7 +127,11 @@ fn statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
     Ok(stmt)
 }
 
-fn for_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
+fn for_statement(
+    stream: &mut impl TokenStream,
+    err: &mut impl io::Write,
+    ast: &mut Ast,
+) -> Result<Stmt> {
     stream
         .match_next(matcher::eq(TokenKind::LeftParen))
         .map_err(|t| Error::new(t, "Expected '(' after 'for'."))?;
@@ -159,7 +167,7 @@ fn for_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
         .match_next(matcher::eq(TokenKind::RightParen))
         .map_err(|t| Error::new(t, "Expected ')' after for clauses."))?;
 
-    let mut body = statement(stream, ast)?;
+    let mut body = statement(stream, err, ast)?;
     if let Some(inc) = inc {
         let inc = ast.push_expr(inc);
         body = Stmt::Block(vec![
@@ -180,7 +188,11 @@ fn for_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
     Ok(for_stmt)
 }
 
-fn if_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
+fn if_statement(
+    stream: &mut impl TokenStream,
+    err: &mut impl io::Write,
+    ast: &mut Ast,
+) -> Result<Stmt> {
     stream
         .match_next(matcher::eq(TokenKind::LeftParen))
         .map_err(|t| Error::new(t, "Expected '(' after 'if'."))?;
@@ -188,11 +200,11 @@ fn if_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
     stream
         .match_next(matcher::eq(TokenKind::RightParen))
         .map_err(|t| Error::new(t, "Expected ')' after if condition."))?;
-    let then_branch = statement(stream, ast)?;
+    let then_branch = statement(stream, err, ast)?;
     let else_branch = stream
         .match_next(matcher::eq(TokenKind::Else))
         .ok()
-        .map(|_| statement(stream, ast))
+        .map(|_| statement(stream, err, ast))
         .transpose()?;
     Ok(Stmt::If {
         cond: ast.push_expr(cond),
@@ -201,7 +213,11 @@ fn if_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
     })
 }
 
-fn while_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt> {
+fn while_statement(
+    stream: &mut impl TokenStream,
+    err: &mut impl io::Write,
+    ast: &mut Ast,
+) -> Result<Stmt> {
     stream
         .match_next(matcher::eq(TokenKind::LeftParen))
         .map_err(|t| Error::new(t, "Expected '(' after 'while'."))?;
@@ -209,7 +225,7 @@ fn while_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Stmt>
     stream
         .match_next(matcher::eq(TokenKind::RightParen))
         .map_err(|t| Error::new(t, "Expected ')' after condition."))?;
-    let body = statement(stream, ast)?;
+    let body = statement(stream, err, ast)?;
     Ok(Stmt::While {
         cond: ast.push_expr(cond),
         body: ast.push_stmt(body),
@@ -244,11 +260,15 @@ fn expression_statement(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<
     Ok(Stmt::Expression(ast.push_expr(expr)))
 }
 
-fn block(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Vec<Stmt>> {
+fn block(
+    stream: &mut impl TokenStream,
+    err: &mut impl io::Write,
+    ast: &mut Ast,
+) -> Result<Vec<Stmt>> {
     let mut stmts = vec![];
 
     while stream.peek().kind != TokenKind::RightBrace && !stream.eof() {
-        stmts.push(declaration(stream, ast));
+        stmts.push(declaration(stream, err, ast));
     }
 
     stream
@@ -257,7 +277,12 @@ fn block(stream: &mut impl TokenStream, ast: &mut Ast) -> Result<Vec<Stmt>> {
     Ok(stmts)
 }
 
-fn fun_decl(stream: &mut impl TokenStream, ast: &mut Ast, kind: &str) -> Result<Stmt> {
+fn fun_decl(
+    stream: &mut impl TokenStream,
+    err: &mut impl io::Write,
+    ast: &mut Ast,
+    kind: &str,
+) -> Result<Stmt> {
     let name = stream
         .match_next(matcher::eq(TokenKind::Identifier))
         .map_err(|t| Error::new(t, format!("Expected {kind} name.")))?;
@@ -291,7 +316,7 @@ fn fun_decl(stream: &mut impl TokenStream, ast: &mut Ast, kind: &str) -> Result<
     stream
         .match_next(matcher::eq(TokenKind::LeftBrace))
         .map_err(|t| Error::new(t, "Expected '{' before {kind} body."))?;
-    let body = block(stream, ast)?;
+    let body = block(stream, err, ast)?;
     Ok(Stmt::Function {
         name,
         params,

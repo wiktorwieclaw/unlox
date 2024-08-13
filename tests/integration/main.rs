@@ -1,35 +1,28 @@
-use assert_matches::assert_matches;
-use unlox_ast::TokenKind;
-use unlox_interpreter::{self as interpreter, Interpreter};
+use unlox_interpreter::Interpreter;
 use unlox_lexer::Lexer;
 
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-enum Error {
-    Parse(unlox_parse::Error),
-    Interpret(unlox_interpreter::Error),
-}
-
-fn interpret(code: &str) -> Result<String, Error> {
+fn interpret(code: &str) -> (String, String) {
     let mut out = Vec::new();
+    let mut err = Vec::new();
     let lexer = Lexer::new(code);
-    let ast = unlox_parse::parse(lexer).map_err(Error::Parse)?;
-    let mut interpreter = Interpreter::new(&mut out);
-    interpreter
-        .interpret(code, &ast)
-        .map_err(Error::Interpret)?;
-    Ok(String::from_utf8(out).unwrap())
+    let ast = unlox_parse::parse(lexer, &mut err);
+    let mut interpreter = Interpreter::with_split_output(&mut out, &mut err);
+    interpreter.interpret(code, &ast);
+    (
+        String::from_utf8(out).unwrap(),
+        String::from_utf8(err).unwrap(),
+    )
 }
 
 #[test]
 fn empty() {
-    assert_eq!(interpret("").unwrap(), "");
+    assert_eq!(interpret("").0, "");
 }
 
 #[test]
 fn math_expressions() {
-    assert_eq!(interpret("print 2 + 2 * 2;").unwrap(), "6\n");
-    assert_eq!(interpret("print (2 + 2) * 2;").unwrap(), "8\n");
+    assert_eq!(interpret("print 2 + 2 * 2;").0, "6\n");
+    assert_eq!(interpret("print (2 + 2) * 2;").0, "8\n");
 }
 
 #[test]
@@ -38,7 +31,7 @@ fn boolean_logic() {
         print "hi" or 2;
         print nil or "yes";
     "#;
-    assert_eq!(interpret(code).unwrap(), "hi\nyes\n");
+    assert_eq!(interpret(code).0, "hi\nyes\n");
 }
 
 #[test]
@@ -60,7 +53,7 @@ fn if_statements() {
 
         if (false) print true; else print false;
     "#;
-    assert_eq!(interpret(code).unwrap(), "true\ntrue\nfalse\nfalse\n");
+    assert_eq!(interpret(code).0, "true\ntrue\nfalse\nfalse\n");
 }
 
 #[test]
@@ -72,7 +65,7 @@ fn while_statements() {
             n = n - 1;
         }
     "#;
-    assert_eq!(interpret(code).unwrap(), "3\n2\n1\n");
+    assert_eq!(interpret(code).0, "3\n2\n1\n");
 }
 
 #[test]
@@ -88,7 +81,7 @@ fn for_statements() {
         }
     "#;
     assert_eq!(
-        interpret(code).unwrap(),
+        interpret(code).0,
         "0\n1\n1\n2\n3\n5\n8\n13\n21\n34\n55\n89\n"
     );
 }
@@ -102,7 +95,7 @@ fn functions() {
 
         sayHi("Dear", "Reader");
     "#;
-    assert_eq!(interpret(code).unwrap(), "Hi, Dear Reader!\n");
+    assert_eq!(interpret(code).0, "Hi, Dear Reader!\n");
 
     let code = r#"
         fun fibonacci(n) {
@@ -119,7 +112,7 @@ fn functions() {
 
         print fibonacci(12);
     "#;
-    assert_eq!(interpret(code).unwrap(), "144\n");
+    assert_eq!(interpret(code).0, "144\n");
 
     let code = r#"
         fun fibonacci(n) {
@@ -129,7 +122,7 @@ fn functions() {
 
         print fibonacci(12);
     "#;
-    assert_eq!(interpret(code).unwrap(), "144\n");
+    assert_eq!(interpret(code).0, "144\n");
 
     let code = r#"
         var a = 1;
@@ -146,10 +139,5 @@ fn functions() {
         }
         main();
     "#;
-    let err = interpret(code).unwrap_err();
-    assert_matches!(err, Error::Interpret(interpreter::Error::UndefinedVariable { name, token }) => {
-        assert_eq!(name, "b");
-        assert_eq!(token.kind, TokenKind::Identifier);
-        assert_eq!(token.line, 9);
-    });
+    assert_eq!(interpret(code).1, "[Line 9]: Undefined variable b.\n");
 }
