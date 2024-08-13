@@ -1,11 +1,11 @@
 [application]
-name = "www"
+name = "unlox"
 default_platform = "web"
 out_dir = "dist"
 asset_dir = "assets"
 
 [web.app]
-title = "www"
+title = "unlox"
 
 [web.watcher]
 reload_html = true
