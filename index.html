@@ -10,8 +10,8 @@
 <body>
   <div id="main"></div>
   <script type="module">
-    import init from "/./assets/dioxus/unlox.js";
-    init("/./assets/dioxus/unlox_bg.wasm").then(wasm => {
+    import init from "/unlox/assets/dioxus/unlox.js";
+    init("/unlox/assets/dioxus/unlox_bg.wasm").then(wasm => {
       if (wasm.__wbindgen_start == undefined) {
         wasm.main();
       }
