@@ -13,13 +13,26 @@ body {
 }
 
 #header {
-    height: 3vh;
+    height: 4vh;
     display: flex;
     flex-direction: row;
     align-items: center;
     color: white;
     gap: 10px;
+}
+
+#run {
     margin-left: 10px;
+    border: none;
+    color: white;
+    background-color: #007acc;
+    cursor: pointer;
+    margin: 4px 4px;
+    padding: 8px 25px;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 4px;
 }
 
 #title {
@@ -32,7 +45,7 @@ body {
     flex-direction: row;
     gap: 10px;
     flex-grow: 1;
-    height: 97vh;
+    height: 96vh;
 }
 
 #code-editor {
@@ -70,6 +83,6 @@ body {
     #output {
         height: 30%;
         width: 100%;
-        border-top: 3px solid #363636;   
+        border-top: 2px solid #363636;   
     }
 }
