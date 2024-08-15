@@ -3,8 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "wasm": "wasm-pack build ../unlox-wasm --target=web --out-dir ../www/pkg",
+    "dev": "npm run wasm && vite",
+    "build": "npm run wasm && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

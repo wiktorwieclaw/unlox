@@ -77,7 +77,7 @@ pub enum Stmt {
         params: Vec<Token>,
         body: Vec<StmtIdx>,
     },
-    ParseErr,
+    ParseErr(Token, String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

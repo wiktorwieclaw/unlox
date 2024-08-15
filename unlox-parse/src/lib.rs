@@ -78,13 +78,10 @@ fn declaration(stream: &mut impl TokenStream, err: &mut impl io::Write, ast: &mu
         }
         _ => statement(stream, err, ast),
     };
-    result
-        .inspect_err(|e| writeln!(err, "[Line {}]: {e}", e.token.line).unwrap())
-        .ok()
-        .unwrap_or_else(|| {
-            synchronize(stream);
-            Stmt::ParseErr
-        })
+    result.unwrap_or_else(|err| {
+        synchronize(stream);
+        Stmt::ParseErr(err.token.clone(), err.message)
+    })
 }
 
 fn statement(

@@ -22,16 +22,16 @@ pub enum Error {
     ExpectedNumbersOrStrings { operator: Token },
     #[error("[Line {}]: Undefined variable {}.", token.line, name)]
     UndefinedVariable { name: String, token: Token },
-    #[error("[Line] {}: Can only call functions and classes.", paren.line)]
+    #[error("[Line {}]: Can only call functions and classes.", paren.line)]
     BadCall { paren: Token },
-    #[error("[Line] {}: Expected {expected} arguments but got {got}.", paren.line)]
+    #[error("[Line {}]: Expected {expected} arguments but got {got}.", paren.line)]
     WrongNumberOfArgs {
         paren: Token,
         expected: usize,
         got: usize,
     },
-    #[error("The program terminated due to a syntax error.")]
-    Parsing,
+    #[error("[Line {}]: The program terminated due to a syntax error: {err}", token.line)]
+    Parsing { token: Token, err: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -145,7 +145,10 @@ impl Interpreter {
                 );
                 Ok(ControlFlow::Continue(()))
             }
-            Stmt::ParseErr => Err(Error::Parsing),
+            Stmt::ParseErr(token, err) => Err(Error::Parsing {
+                token: token.clone(),
+                err: err.clone(),
+            }),
         }
     }
 
