@@ -49,9 +49,27 @@ body {
     font-family: monospace;
     color: white;
     background-color: #1e1e1e;
-	border: 0px;
+    border-width: 0px;
 }
 
 #output:focus {
     outline: 0;
+}
+
+@media (max-width: 850px) {
+    #container {
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    #code-editor {
+        height: 70%;
+        width: 100%;
+    }
+
+    #output {
+        height: 30%;
+        width: 100%;
+        border-top: 3px solid #363636;   
+    }
 }
