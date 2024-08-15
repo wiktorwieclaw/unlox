@@ -1,6 +1,6 @@
 use std::io::{stderr, stdout};
 
-use unlox_interpreter::Interpreter;
+use unlox_interpreter::{output::SplitOutput, Ctx, Interpreter};
 use unlox_lexer::Lexer;
 
 fn main() {
@@ -39,6 +39,10 @@ fn main() {
     ";
     let lexer = Lexer::new(code);
     let ast = unlox_parse::parse(lexer, &mut stderr());
-    let mut interpreter = Interpreter::with_split_output(stdout(), stderr());
-    interpreter.interpret(code, &ast);
+    let mut interpreter = Interpreter::new();
+    let mut ctx = Ctx {
+        src: code,
+        out: SplitOutput::new(stdout(), stderr()),
+    };
+    interpreter.interpret(&mut ctx, &ast);
 }

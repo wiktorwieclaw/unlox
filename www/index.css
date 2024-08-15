@@ -1,0 +1,57 @@
+body {
+    background-color: #1e1e1e;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0px;
+}
+
+#main {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+#header {
+    height: 3vh;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    color: white;
+    gap: 10px;
+    margin-left: 10px;
+}
+
+#title {
+    height: auto;
+    margin: 0;
+}
+
+#container {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    flex-grow: 1;
+    height: 97vh;
+}
+
+#code-editor {
+	height: auto;
+    width: 50%;
+    font-family: monospace;
+    color: white;
+    background-color: #1e1e1e;
+}
+
+#output {
+	height: auto;
+    width: 50%;
+    font-family: monospace;
+    color: white;
+    background-color: #1e1e1e;
+	border: 0px;
+}
+
+#output:focus {
+    outline: 0;
+}

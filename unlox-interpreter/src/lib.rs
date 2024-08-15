@@ -1,5 +1,5 @@
 use env::{Env, EnvCactus, EnvIndex};
-use output::{Output, SingleOutput, SplitOutput};
+use output::Output;
 use std::{
     io::Write,
     ops::ControlFlow,
@@ -36,25 +36,25 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub struct Interpreter<Out> {
+pub struct Interpreter {
     env_tree: EnvCactus,
-    out: Out,
 }
 
-impl<Out> Interpreter<SingleOutput<Out>> {
-    pub fn new(out: Out) -> Self {
-        Self {
-            env_tree: EnvCactus::with_global(new_global_env()),
-            out: SingleOutput(out),
-        }
+pub struct Ctx<'a, Out> {
+    pub src: &'a str,
+    pub out: Out,
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl<Out, Err> Interpreter<SplitOutput<Out, Err>> {
-    pub fn with_split_output(out: Out, err: Err) -> Self {
+impl Interpreter {
+    pub fn new() -> Self {
         Self {
             env_tree: EnvCactus::with_global(new_global_env()),
-            out: SplitOutput(out, err),
         }
     }
 }
@@ -65,37 +65,39 @@ fn new_global_env() -> Env {
     global
 }
 
-impl<Out> Interpreter<Out>
-where
-    Out: Output,
-{
-    pub fn interpret(&mut self, source: &str, ast: &Ast) {
+impl Interpreter {
+    pub fn interpret(&mut self, ctx: &mut Ctx<impl Output>, ast: &Ast) {
         for stmt in ast.roots() {
-            if let Err(error) = self.execute(source, ast, *stmt) {
-                writeln!(self.out.err(), "{error}").unwrap();
+            if let Err(error) = self.execute(ctx, ast, *stmt) {
+                writeln!(ctx.out.err(), "{error}").unwrap();
                 return;
             }
         }
     }
 
-    fn execute(&mut self, source: &str, ast: &Ast, stmt: StmtIdx) -> Result<ControlFlow<Val>> {
+    fn execute(
+        &mut self,
+        ctx: &mut Ctx<impl Output>,
+        ast: &Ast,
+        stmt: StmtIdx,
+    ) -> Result<ControlFlow<Val>> {
         match ast.stmt(stmt) {
             Stmt::If {
                 cond,
                 then_branch,
                 else_branch,
             } => {
-                if self.evaluate(source, ast, *cond)?.is_truthy() {
-                    self.execute(source, ast, *then_branch)
+                if self.evaluate(ctx, ast, *cond)?.is_truthy() {
+                    self.execute(ctx, ast, *then_branch)
                 } else if let Some(else_branch) = else_branch {
-                    self.execute(source, ast, *else_branch)
+                    self.execute(ctx, ast, *else_branch)
                 } else {
                     Ok(ControlFlow::Continue(()))
                 }
             }
             Stmt::While { cond, body } => {
-                while self.evaluate(source, ast, *cond)?.is_truthy() {
-                    let control_flow = self.execute(source, ast, *body)?;
+                while self.evaluate(ctx, ast, *cond)?.is_truthy() {
+                    let control_flow = self.execute(ctx, ast, *body)?;
                     if control_flow.is_break() {
                         return Ok(control_flow);
                     }
@@ -103,42 +105,42 @@ where
                 Ok(ControlFlow::Continue(()))
             }
             Stmt::Print(expr) => {
-                let val = self.evaluate(source, ast, *expr)?;
-                writeln!(self.out.out(), "{val}").unwrap();
+                let val = self.evaluate(ctx, ast, *expr)?;
+                writeln!(ctx.out.out(), "{val}").unwrap();
                 Ok(ControlFlow::Continue(()))
             }
             Stmt::Return(_, expr) => {
                 let val = expr
-                    .map(|e| self.evaluate(source, ast, e))
+                    .map(|e| self.evaluate(ctx, ast, e))
                     .transpose()?
                     .unwrap_or_default();
                 Ok(ControlFlow::Break(val))
             }
             Stmt::VarDecl { name, init } => {
                 let init = match init {
-                    Some(init) => self.evaluate(source, ast, *init)?,
+                    Some(init) => self.evaluate(ctx, ast, *init)?,
                     None => Val::Nil,
                 };
                 self.env_tree
                     .current_env_mut()
-                    .define_var(source[name.lexeme.clone()].to_owned(), init);
+                    .define_var(ctx.src[name.lexeme.clone()].to_owned(), init);
                 Ok(ControlFlow::Continue(()))
             }
             Stmt::Expression(expr) => {
-                self.evaluate(source, ast, *expr)?;
+                self.evaluate(ctx, ast, *expr)?;
                 Ok(ControlFlow::Continue(()))
             }
             Stmt::Block(stmts) => {
-                self.execute_block(source, ast, stmts, Env::new(), self.env_tree.current())
+                self.execute_block(ctx, ast, stmts, Env::new(), self.env_tree.current())
             }
             Stmt::Function { name, params, body } => {
                 let callable = Callable::Function {
-                    name: source[name.lexeme.clone()].to_owned(),
+                    name: ctx.src[name.lexeme.clone()].to_owned(),
                     params: params.clone(),
                     body: body.clone(),
                 };
                 self.env_tree.current_env_mut().define_var(
-                    source[name.lexeme.clone()].to_owned(),
+                    ctx.src[name.lexeme.clone()].to_owned(),
                     Val::Callable(callable),
                 );
                 Ok(ControlFlow::Continue(()))
@@ -149,7 +151,7 @@ where
 
     fn execute_block(
         &mut self,
-        source: &str,
+        ctx: &mut Ctx<impl Output>,
         ast: &Ast,
         stmts: &[StmtIdx],
         env: Env,
@@ -158,7 +160,7 @@ where
         self.env_tree.push_at(env_parent, env);
         let result = (|| {
             for stmt in stmts {
-                let control_flow = self.execute(source, ast, *stmt)?;
+                let control_flow = self.execute(ctx, ast, *stmt)?;
                 if control_flow.is_break() {
                     return Ok(control_flow);
                 }
@@ -169,12 +171,12 @@ where
         result
     }
 
-    fn evaluate(&mut self, source: &str, ast: &Ast, expr: ExprIdx) -> Result<Val> {
+    fn evaluate(&mut self, ctx: &mut Ctx<impl Output>, ast: &Ast, expr: ExprIdx) -> Result<Val> {
         let lit = match ast.expr(expr) {
             Expr::Literal(value) => value.clone().into(),
-            Expr::Grouping(expr) => self.evaluate(source, ast, *expr)?,
+            Expr::Grouping(expr) => self.evaluate(ctx, ast, *expr)?,
             Expr::Unary(operator, right) => {
-                let right = self.evaluate(source, ast, *right)?;
+                let right = self.evaluate(ctx, ast, *right)?;
                 match (&operator.kind, right) {
                     (TokenKind::Bang, right) => Val::Bool(!right.is_truthy()),
                     (TokenKind::Minus, Val::Number(n)) => Val::Number(-n),
@@ -187,8 +189,8 @@ where
                 }
             }
             Expr::Binary(operator, left, right) => {
-                let left = self.evaluate(source, ast, *left)?;
-                let right = self.evaluate(source, ast, *right)?;
+                let left = self.evaluate(ctx, ast, *left)?;
+                let right = self.evaluate(ctx, ast, *right)?;
 
                 match (&operator.kind, left, right) {
                     (TokenKind::Minus, Val::Number(l), Val::Number(r)) => Val::Number(l - r),
@@ -226,7 +228,7 @@ where
                 }
             }
             Expr::Variable(var) => {
-                let name = &source[var.lexeme.clone()];
+                let name = &ctx.src[var.lexeme.clone()];
                 self.env_tree
                     .var(name)
                     .ok_or_else(|| Error::UndefinedVariable {
@@ -236,8 +238,8 @@ where
                     .clone()
             }
             Expr::Assign { var, value } => {
-                let value = self.evaluate(source, ast, *value)?;
-                let name = &source[var.lexeme.clone()];
+                let value = self.evaluate(ctx, ast, *value)?;
+                let name = &ctx.src[var.lexeme.clone()];
                 self.env_tree
                     .assign_var(name, value)
                     .ok_or_else(|| Error::UndefinedVariable {
@@ -247,12 +249,12 @@ where
                     .clone()
             }
             Expr::Logical(operator, left, right) => {
-                let left = self.evaluate(source, ast, *left)?;
+                let left = self.evaluate(ctx, ast, *left)?;
                 match (&operator.kind, left.is_truthy()) {
                     (TokenKind::Or, true) => left,
-                    (TokenKind::Or, false) => self.evaluate(source, ast, *right)?,
+                    (TokenKind::Or, false) => self.evaluate(ctx, ast, *right)?,
                     (_, false) => left,
-                    _ => self.evaluate(source, ast, *right)?,
+                    _ => self.evaluate(ctx, ast, *right)?,
                 }
             }
             Expr::Call {
@@ -260,7 +262,7 @@ where
                 paren,
                 args,
             } => {
-                let callee = self.evaluate(source, ast, *callee)?;
+                let callee = self.evaluate(ctx, ast, *callee)?;
                 let Val::Callable(callable) = callee else {
                     return Err(Error::BadCall {
                         paren: paren.clone(),
@@ -268,7 +270,7 @@ where
                 };
                 let args: Result<Vec<_>> = args
                     .iter()
-                    .map(|arg| self.evaluate(source, ast, *arg))
+                    .map(|arg| self.evaluate(ctx, ast, *arg))
                     .collect();
                 let args = args?;
                 if args.len() != callable.arity() {
@@ -278,13 +280,19 @@ where
                         got: args.len(),
                     });
                 }
-                self.call(source, ast, callable, args)?
+                self.call(ctx, ast, callable, args)?
             }
         };
         Ok(lit)
     }
 
-    fn call(&mut self, source: &str, ast: &Ast, callable: Callable, args: Vec<Val>) -> Result<Val> {
+    fn call(
+        &mut self,
+        ctx: &mut Ctx<impl Output>,
+        ast: &Ast,
+        callable: Callable,
+        args: Vec<Val>,
+    ) -> Result<Val> {
         match callable {
             Callable::Clock => Ok(Val::Number(
                 SystemTime::now()
@@ -295,11 +303,11 @@ where
             Callable::Function { params, body, .. } => {
                 let mut env = Env::new();
                 for (param, arg) in params.iter().zip(args) {
-                    let name = &source[param.lexeme.clone()];
+                    let name = &ctx.src[param.lexeme.clone()];
                     env.define_var(name.to_owned(), arg);
                 }
                 let control_flow =
-                    self.execute_block(source, ast, &body, env, self.env_tree.global())?;
+                    self.execute_block(ctx, ast, &body, env, self.env_tree.global())?;
                 match control_flow {
                     ControlFlow::Continue(()) => Ok(Val::Nil),
                     ControlFlow::Break(val) => Ok(val),

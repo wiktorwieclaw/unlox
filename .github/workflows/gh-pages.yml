@@ -17,13 +17,16 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
       - uses: Swatinem/rust-cache@v2
-      - name: Install Dioxus-CLI
-        shell: bash
-        run: cargo install dioxus-cli
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'latest'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
       - name: Build Project 🎁
         shell: bash
-        run: dx build --bin www --release && cp ./www/dist/index.html ./www/dist/404.html
+        run: wasm-pack build unlox-wasm --target web --out-dir ../www/pkg && cd www && npm install && npm run build 
 
       - name: Deploy Project 🚀
         uses: JamesIves/github-pages-deploy-action@v4.4.1

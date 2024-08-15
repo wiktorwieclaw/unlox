@@ -1,4 +1,4 @@
-use unlox_interpreter::Interpreter;
+use unlox_interpreter::{output::SplitOutput, Ctx, Interpreter};
 use unlox_lexer::Lexer;
 
 fn interpret(code: &str) -> (String, String) {
@@ -6,8 +6,12 @@ fn interpret(code: &str) -> (String, String) {
     let mut err = Vec::new();
     let lexer = Lexer::new(code);
     let ast = unlox_parse::parse(lexer, &mut err);
-    let mut interpreter = Interpreter::with_split_output(&mut out, &mut err);
-    interpreter.interpret(code, &ast);
+    let mut interpreter = Interpreter::new();
+    let mut ctx = Ctx {
+        src: code,
+        out: SplitOutput::new(&mut out, &mut err),
+    };
+    interpreter.interpret(&mut ctx, &ast);
     (
         String::from_utf8(out).unwrap(),
         String::from_utf8(err).unwrap(),

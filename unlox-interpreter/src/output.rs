@@ -7,6 +7,12 @@ pub trait Output {
 
 pub struct SingleOutput<Out>(pub(crate) Out);
 
+impl<Out> SingleOutput<Out> {
+    pub fn new(out: Out) -> Self {
+        Self(out)
+    }
+}
+
 impl<Out> Output for SingleOutput<Out>
 where
     Out: io::Write,
@@ -21,6 +27,12 @@ where
 }
 
 pub struct SplitOutput<Out, Err>(pub(crate) Out, pub(crate) Err);
+
+impl<Out, Err> SplitOutput<Out, Err> {
+    pub fn new(out: Out, err: Err) -> Self {
+        Self(out, err)
+    }
+}
 
 impl<Out, Err> Output for SplitOutput<Out, Err>
 where

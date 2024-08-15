@@ -7,7 +7,7 @@ members = [
     "unlox-parse",
     "unlox-tokens",
     "unlox-tree",
-    "www"
+    "unlox-wasm",
 ]
 
 [package]
