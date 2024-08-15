@@ -1,6 +1,8 @@
 # Unlox
 An interpreter for the Lox programming language written in Rust.
 
+### [Live demo](https://wiktorwieclaw.github.io/unlox/)
+
 ## Example
 Calculate 28th element in the Fibonacci sequence:
 ```
