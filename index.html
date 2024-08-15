@@ -1,22 +1,19 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>unlox</title>
-  <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta charset="UTF-8" />
-  
-</head>
-<body>
-  <div id="main"></div>
-  <script type="module">
-    import init from "/unlox/assets/dioxus/unlox.js";
-    init("/unlox/assets/dioxus/unlox_bg.wasm").then(wasm => {
-      if (wasm.__wbindgen_start == undefined) {
-        wasm.main();
-      }
-    });
-  </script>
-  
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>unlox</title>
+    <script type="module" crossorigin src="/assets/index-DzuhFToT.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-tjdkIhrV.css">
+  </head>
+  <body>
+    <div id="header">
+      <button id="run">Run</button>
+    </div>
+    <div id="container">
+      <div id="code-editor"></div>
+      <textarea id="output" readonly=true resize=none></textarea>
+    </div>
+  </body>
 </html>
