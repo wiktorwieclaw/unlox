@@ -66,7 +66,7 @@ init().then(() => {
     });
     const editor = monaco.editor.create(document.getElementById("code-editor")!, {
         value: [
-            'fun fib(n){',
+            'fun fib(n) {',
             '    if (n <= 1) return n;',
             '    return fib(n - 2) + fib(n - 1);',
             '}\n',
