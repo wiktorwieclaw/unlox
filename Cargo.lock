@@ -125,6 +125,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "unlox-bytecode"
+version = "0.1.0"
+
+[[package]]
 name = "unlox-cactus"
 version = "0.1.0"
 dependencies = [

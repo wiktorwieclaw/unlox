@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "unlox-ast",
+    "unlox-bytecode",
     "unlox-cactus",
     "unlox-interpreter",
     "unlox-lexer",
@@ -24,7 +25,7 @@ unlox-lexer = { path = "unlox-lexer" }
 unlox-parse = { path = "unlox-parse" }
 unlox-interpreter = { path = "unlox-interpreter" }
 unlox-tokens = { path = "unlox-tokens" }
-unlox-tree = { version = "0.1.0", path = "unlox-tree" }
+unlox-tree = { path = "unlox-tree" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
