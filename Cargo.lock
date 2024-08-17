@@ -171,6 +171,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "unlox-vm"
+version = "0.1.0"
+dependencies = [
+ "unlox-bytecode",
+]
+
+[[package]]
 name = "unlox-wasm"
 version = "0.1.0"
 dependencies = [

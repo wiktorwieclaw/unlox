@@ -8,6 +8,7 @@ members = [
     "unlox-parse",
     "unlox-tokens",
     "unlox-tree",
+    "unlox-vm",
     "unlox-wasm",
 ]
 
