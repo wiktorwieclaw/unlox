@@ -19,12 +19,16 @@ impl Interpreter {
     }
 
     #[wasm_bindgen]
-    pub fn interpret(&mut self, src: &str) {
+    pub fn interpret(&mut self, src: &str, output_callback: &js_sys::Function) {
         let lexer = unlox_lexer::Lexer::new(src);
         let ast = unlox_parse::parse(lexer, &mut self.out);
+        let mut out = OutStream {
+            inner: &mut self.out,
+            callback: output_callback,
+        };
         let mut ctx = unlox_interpreter::Ctx {
             src,
-            out: SingleOutput::new(&mut self.out),
+            out: SingleOutput::new(&mut out),
         };
         self.interpreter.interpret(&mut ctx, &ast);
     }
@@ -37,5 +41,24 @@ impl Interpreter {
     #[wasm_bindgen]
     pub fn clear(&mut self) {
         self.out.clear()
+    }
+}
+
+struct OutStream<'a, T: std::io::Write> {
+    inner: T,
+    callback: &'a js_sys::Function,
+}
+
+impl<'a, T: std::io::Write> std::io::Write for OutStream<'a, T> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let nwritten = self.inner.write(buf)?;
+        let out = std::str::from_utf8(buf).unwrap();
+        let value = JsValue::from_str(out);
+        self.callback.call1(&JsValue::NULL, &value).unwrap();
+        Ok(nwritten)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
     }
 }

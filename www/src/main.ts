@@ -68,18 +68,20 @@ const editor = monaco.editor.create(document.getElementById("code-editor")!, {
         '    if (n <= 1) return n;',
         '    return fib(n - 2) + fib(n - 1);',
         '}\n',
-        'print fib(15);'
+        'print fib(30);'
     ].join('\n'),
     language: 'lox',
     automaticLayout: true
 });
 monaco.editor.setTheme("vs-dark");
 
-const output = document.getElementById("output")!;
+const output = document.getElementById("output-text")!;
+const indicator = document.getElementById("output-panel-header")!;
 
 let worker: Worker | null;
 let indicatorInterval: number | null;
 document.getElementById("run")?.addEventListener("click", () => {
+    const start = Date.now();
     output.textContent = "";
 
     if (worker) {
@@ -91,17 +93,29 @@ document.getElementById("run")?.addEventListener("click", () => {
     }
 
     indicatorInterval = setInterval(() => {
-        if (output.textContent?.length === 3) {
-            output.textContent = ""
+        // horrible but works
+        if (indicator.textContent?.length === 10) {
+            indicator.textContent = "Output "
         } else {
-            output.textContent += '•';
+            indicator.textContent += '•';
         }
     }, 500)
 
     worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = (event) => {
-        clearInterval(indicatorInterval);
-        output.textContent = event.data;
+        switch (event.data.type) {
+            case "output":
+                output.textContent += event.data.output;
+                break;
+            case "end":
+                const end = Date.now();
+                if (indicatorInterval) {
+                    clearInterval(indicatorInterval);
+                }
+                output.textContent += `\nExecution finished in ${(end - start) / 1000} seconds.`
+                indicator.textContent = "Output ";
+                break;
+        }
     };
     worker.postMessage(editor.getValue());
 });
