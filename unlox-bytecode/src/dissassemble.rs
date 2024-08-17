@@ -26,6 +26,9 @@ pub fn dissassemble(chunk: &Chunk, name: &str, out: &mut impl io::Write) -> io::
             OpCode::Return => {
                 writeln!(out, "OP_RETURN")?;
             }
+            OpCode::Negate => {
+                writeln!(out, "OP_NEGATE")?;
+            }
         }
     }
 
@@ -35,12 +38,11 @@ pub fn dissassemble(chunk: &Chunk, name: &str, out: &mut impl io::Write) -> io::
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Value;
 
     #[test]
     fn test() {
         let mut chunk = Chunk::new();
-        let constant = chunk.add_constant(Value(1.2));
+        let constant = chunk.add_constant(1.2);
         chunk.write(OpCode::Constant as u8, 123);
         chunk.write(constant, 123);
         chunk.write(OpCode::Return as u8, 123);

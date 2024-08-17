@@ -36,24 +36,20 @@ impl Default for Chunk {
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum OpCode {
-    Constant = 0x00,
-    Return = 0x01,
+    Constant,
+    Negate,
+    Return,
 }
 
 impl OpCode {
     pub fn parse(raw: u8) -> Option<Self> {
         match raw {
             0x00 => Some(OpCode::Constant),
-            0x01 => Some(OpCode::Return),
+            0x01 => Some(OpCode::Negate),
+            0x02 => Some(OpCode::Return),
             _ => None,
         }
     }
 }
 
-pub struct Value(pub f64);
-
-impl std::fmt::Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
+pub type Value = f64;
