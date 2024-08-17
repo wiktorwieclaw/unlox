@@ -1,5 +1,4 @@
 import * as monaco from 'monaco-editor';
-import init, { Interpreter } from "../pkg";
 // @ts-ignore  
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 // @ts-ignore  
@@ -30,59 +29,79 @@ self.MonacoEnvironment = {
     }
 };
 
-init().then(() => {
-    monaco.languages.register({ id: "lox" });
-    monaco.languages.setMonarchTokensProvider('lox', {
-        keywords: [
-            "and",
-            "class",
-            "else",
-            "false",
-            "fun",
-            "for",
-            "if",
-            "nil",
-            "or",
-            "print",
-            "return",
-            "super",
-            "this",
-            "true",
-            "var",
-            "while"
-        ],
-        tokenizer: {
-            root: [
-                [/@?[a-zA-Z][\w$]*/, {
-                    cases: {
-                        '@keywords': 'keyword',
-                        '@default': 'variable',
-                    }
-                }],
-                [/".*?"/, 'string'],
-                [/\/\//, 'comment']
-            ]
+monaco.languages.register({ id: "lox" });
+monaco.languages.setMonarchTokensProvider('lox', {
+    keywords: [
+        "and",
+        "class",
+        "else",
+        "false",
+        "fun",
+        "for",
+        "if",
+        "nil",
+        "or",
+        "print",
+        "return",
+        "super",
+        "this",
+        "true",
+        "var",
+        "while"
+    ],
+    tokenizer: {
+        root: [
+            [/@?[a-zA-Z][\w$]*/, {
+                cases: {
+                    '@keywords': 'keyword',
+                    '@default': 'variable',
+                }
+            }],
+            [/".*?"/, 'string'],
+            [/\/\//, 'comment']
+        ]
+    }
+});
+const editor = monaco.editor.create(document.getElementById("code-editor")!, {
+    value: [
+        'fun fib(n) {',
+        '    if (n <= 1) return n;',
+        '    return fib(n - 2) + fib(n - 1);',
+        '}\n',
+        'print fib(15);'
+    ].join('\n'),
+    language: 'lox',
+    automaticLayout: true
+});
+monaco.editor.setTheme("vs-dark");
+
+const output = document.getElementById("output")!;
+
+let worker: Worker | null;
+let indicatorInterval: number | null;
+document.getElementById("run")?.addEventListener("click", () => {
+    output.textContent = "";
+
+    if (worker) {
+        if (indicatorInterval) {
+            clearInterval(indicatorInterval);
         }
-    });
-    const editor = monaco.editor.create(document.getElementById("code-editor")!, {
-        value: [
-            'fun fib(n) {',
-            '    if (n <= 1) return n;',
-            '    return fib(n - 2) + fib(n - 1);',
-            '}\n',
-            'print fib(15);'
-        ].join('\n'),
-        language: 'lox',
-        automaticLayout: true
-    });
-    monaco.editor.setTheme("vs-dark");
+        worker.terminate();
+        worker = null;
+    }
 
-    const interpreter = new Interpreter();
-    const output = document.getElementById("output")!;
+    indicatorInterval = setInterval(() => {
+        if (output.textContent?.length === 3) {
+            output.textContent = ""
+        } else {
+            output.textContent += '•';
+        }
+    }, 500)
 
-    document.getElementById("run")?.addEventListener("click", (_e) => {
-        interpreter.clear();
-        interpreter.interpret(editor.getValue());
-        output.textContent = interpreter.out();
-    });
-})
+    worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = (event) => {
+        clearInterval(indicatorInterval);
+        output.textContent = event.data;
+    };
+    worker.postMessage(editor.getValue());
+});

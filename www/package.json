@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "unlox-wasm": "file:./pkg",
     "monaco-editor": "^0.50.0"
   },
   "devDependencies": {
