@@ -37,6 +37,10 @@ impl Default for Chunk {
 #[repr(u8)]
 pub enum OpCode {
     Constant,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
     Negate,
     Return,
 }
@@ -45,8 +49,12 @@ impl OpCode {
     pub fn parse(raw: u8) -> Option<Self> {
         match raw {
             0x00 => Some(OpCode::Constant),
-            0x01 => Some(OpCode::Negate),
-            0x02 => Some(OpCode::Return),
+            0x01 => Some(OpCode::Add),
+            0x02 => Some(OpCode::Subtract),
+            0x03 => Some(OpCode::Multiply),
+            0x04 => Some(OpCode::Divide),
+            0x05 => Some(OpCode::Negate),
+            0x06 => Some(OpCode::Return),
             _ => None,
         }
     }

@@ -60,6 +60,26 @@ impl Vm {
                     let constant = chunk.constants[usize::from(read_byte())];
                     self.stack.push(constant);
                 }
+                OpCode::Add => {
+                    let b = self.stack.pop();
+                    let a = self.stack.pop();
+                    self.stack.push(a + b);
+                }
+                OpCode::Subtract => {
+                    let b = self.stack.pop();
+                    let a = self.stack.pop();
+                    self.stack.push(a - b);
+                }
+                OpCode::Multiply => {
+                    let b = self.stack.pop();
+                    let a = self.stack.pop();
+                    self.stack.push(a * b);
+                }
+                OpCode::Divide => {
+                    let b = self.stack.pop();
+                    let a = self.stack.pop();
+                    self.stack.push(a / b);
+                }
                 OpCode::Negate => {
                     let v = self.stack.pop();
                     self.stack.push(-v);

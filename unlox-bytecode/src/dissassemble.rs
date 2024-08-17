@@ -23,12 +23,12 @@ pub fn dissassemble(chunk: &Chunk, name: &str, out: &mut impl io::Write) -> io::
                 let arg = &chunk.constants[usize::from(arg_idx)];
                 writeln!(out, "{name:<16} {arg_idx:4} '{arg}'")?;
             }
-            OpCode::Return => {
-                writeln!(out, "OP_RETURN")?;
-            }
-            OpCode::Negate => {
-                writeln!(out, "OP_NEGATE")?;
-            }
+            OpCode::Add => writeln!(out, "OP_ADD")?,
+            OpCode::Subtract => writeln!(out, "OP_SUBTRACT")?,
+            OpCode::Multiply => writeln!(out, "OP_MULTIPLY")?,
+            OpCode::Divide => writeln!(out, "OP_DIVIDE")?,
+            OpCode::Negate => writeln!(out, "OP_NEGATE")?,
+            OpCode::Return => writeln!(out, "OP_RETURN")?,
         }
     }
 
