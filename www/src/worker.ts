@@ -1,11 +1,20 @@
 import init, { Interpreter } from "unlox-wasm";
 
-self.onmessage = async (event) => {
-    await init();
-    const interpreter = new Interpreter();
-    interpreter.interpret(event.data, (output: string) => {
+class Writer {
+    write(output: string) {
         postMessage({ type: "output", output });
-    })
-    postMessage({ type: "end" })
+        return output.length
+    }
 
+    flush() {
+        // no-op
+    }
+}
+
+self.onmessage = async (event: any) => {
+    await init({});
+    const writer = new Writer();
+    const interpreter = new Interpreter();
+    interpreter.interpret(event.data, writer);
+    postMessage({ type: "end" })
 }
